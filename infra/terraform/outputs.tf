@@ -47,3 +47,13 @@ output "log_group_name" {
   description = "CloudWatch log group the containers ship to."
   value       = aws_cloudwatch_log_group.app.name
 }
+
+output "deploy_role_arn" {
+  description = "IAM role GitHub Actions assumes for this workspace (OIDC)."
+  value       = aws_iam_role.github_deploy.arn
+}
+
+output "deploy_role_name" {
+  description = "Name of the GitHub Actions deploy role."
+  value       = aws_iam_role.github_deploy.name
+}
