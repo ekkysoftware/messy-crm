@@ -169,10 +169,18 @@ jobs:
 
       - name: Build and push
         run: |
-          docker buildx build --platform linux/amd64 --push -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" .
-          digest=$(docker buildx imagetools inspect "${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" --format '{{.Manifest.Digest}}')
+          # The repository is immutable and the tag is commit-derived, so a re-run
+          # of the same commit reuses the image that commit already produced.
+          if aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag="$TAG" >/dev/null 2>&1; then
+            digest=$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag="$TAG" \
+              --query 'imageDetails[0].imageDigest' --output text)
+            echo "reusing ${ECR_REPOSITORY}:${TAG} ${digest}"
+          else
+            docker buildx build --platform linux/amd64 --push -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" .
+            digest=$(docker buildx imagetools inspect "${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" --format '{{.Manifest.Digest}}')
+            echo "pushed ${ECR_REPOSITORY}:${TAG} ${digest}"
+          fi
           echo "IMAGE_DIGEST=$digest" >> "$GITHUB_ENV"
-          echo "pushed ${ECR_REPOSITORY}:${TAG} ${digest}"
 
       - name: Deploy to the host
         run: ./scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "deploy ${TAG}" "sudo -n /opt/messycrm/deploy.sh ${TAG}"

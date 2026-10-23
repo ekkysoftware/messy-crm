@@ -123,10 +123,16 @@ data "aws_iam_policy_document" "github_deploy" {
     sid     = "ReadDeployCommand"
     effect  = "Allow"
     actions = ["ssm:GetCommandInvocation"]
-    # Authorized against the *command*, not the instance: scoping this to the
-    # instance ARN fails with AccessDenied on a resource of
-    # arn:aws:ssm:<region>:<account>:command/*
-    resources = ["arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:command/*"]
+    # GetCommandInvocation is not evaluated against a scoped SSM ARN: "command/*",
+    # the instance ARN and the account-level ARN all come back AccessDenied. It is
+    # granted on "*" and pinned to the deployment region instead.
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [var.aws_region]
+    }
   }
 }
 
