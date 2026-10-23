@@ -1,0 +1,25 @@
+[Unit]
+Description=messycrm application stack
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/messycrm
+# configure.sh writes .env from host.env plus the Secrets Manager values and
+# fails loudly (explicit missing-secret message in the journal) when they are
+# absent, so the stack never starts with blank credentials.
+ExecStartPre=/opt/messycrm/configure.sh
+# Best-effort pull: on a freshly applied environment the image may not exist yet,
+# and the unit is expected to keep retrying until the first push.
+ExecStartPre=-/usr/bin/docker compose -f /opt/messycrm/compose.yml --env-file /opt/messycrm/.env pull
+ExecStart=/usr/bin/docker compose -f /opt/messycrm/compose.yml --env-file /opt/messycrm/.env up -d --remove-orphans
+ExecStop=/usr/bin/docker compose -f /opt/messycrm/compose.yml --env-file /opt/messycrm/.env down
+Restart=on-failure
+RestartSec=15
+TimeoutStartSec=900
+
+[Install]
+WantedBy=multi-user.target

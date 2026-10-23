@@ -15,3 +15,11 @@ staticfiles/
 .pi/APPEND_SYSTEM.md
 .env
 .pi/skills
+
+# Terraform: local state, workspaces and plan artifacts (infra/terraform)
+infra/terraform/.terraform
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/terraform.tfstate.d
+infra/terraform/*.tfplan
+infra/terraform/terraform.tfvars

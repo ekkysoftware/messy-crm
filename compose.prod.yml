@@ -1,0 +1,60 @@
+name: messy-crm
+
+# Production stack for the single-host AWS deployment (infra/terraform).
+#
+# Differences from compose.yml are intentional and documented in
+# infra/terraform/README.md: `web` pulls from ECR instead of building, the
+# database port is not published, Postgres data lives on the EBS mount, every
+# value comes from the boot-time env file, and logs ship to CloudWatch.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-messycrm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in /opt/messycrm/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-messycrm}
+      # The EBS volume is mounted as the bind-mount root, so its mkfs created
+      # lost+found next to the data. initdb refuses a non-empty directory:
+      # keep the cluster in a subdirectory of the mount (postgres' own
+      # recommendation for bind mounts).
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - /srv/messycrm/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: ${LOG_GROUP:?set LOG_GROUP in /opt/messycrm/.env}
+        awslogs-region: ${AWS_REGION:?set AWS_REGION in /opt/messycrm/.env}
+        # Docker's awslogs driver has no stream *prefix* option (that is an ECS
+        # task-definition field); a fixed stream name gives one stream per service.
+        awslogs-stream: db
+
+  web:
+    image: ${ECR_REGISTRY:?set ECR_REGISTRY in /opt/messycrm/.env}/${ECR_REPOSITORY:?set ECR_REPOSITORY in /opt/messycrm/.env}:${IMAGE_TAG:?set IMAGE_TAG in /opt/messycrm/.env}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set DJANGO_SECRET_KEY in /opt/messycrm/.env}
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in /opt/messycrm/.env}
+      INERTIA_VERSION: ${IMAGE_TAG:?set IMAGE_TAG in /opt/messycrm/.env}
+      RUN_MIGRATIONS: "true"
+    ports:
+      - "80:8000"
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: ${LOG_GROUP:?set LOG_GROUP in /opt/messycrm/.env}
+        awslogs-region: ${AWS_REGION:?set AWS_REGION in /opt/messycrm/.env}
+        awslogs-stream: web

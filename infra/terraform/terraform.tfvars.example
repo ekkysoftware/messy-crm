@@ -1,0 +1,13 @@
+# Copy this file to terraform.tfvars (git-ignored) and adjust the values.
+# Every variable also accepts a -var flag; the workspace flow documented in
+# README.md passes `environment` explicitly so it matches the active workspace.
+
+project_name        = "messycrm"
+aws_region          = "ap-southeast-3"
+environment         = "dev"
+instance_type       = "t3.small"
+app_ingress_cidr    = "0.0.0.0/0"
+data_volume_size_gb = 20
+log_retention_days  = 14
+compose_version     = "2.32.4"
+image_tag           = "bootstrap"
