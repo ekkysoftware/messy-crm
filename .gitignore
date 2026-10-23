@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+db.sqlite3
+
+# Frontend build output (mounted via STATICFILES_DIRS; .gitkeep keeps the dir)
+frontend/dist/*
+!frontend/dist/.gitkeep
+
+# Frontend dependencies (bun)
+node_modules/
+
+# collectstatic output
+staticfiles/
+.pi/APPEND_SYSTEM.md
+.env
+.pi/skills

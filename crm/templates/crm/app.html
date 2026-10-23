@@ -1,0 +1,14 @@
+{% load django_vite %}<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Jellybean CRM</title>
+    {% vite_hmr_client %}
+    {% vite_react_refresh %}
+    {% vite_asset 'src/app.tsx' %}
+  </head>
+  <body>
+    {% block inertia %}{% endblock %}
+  </body>
+</html>

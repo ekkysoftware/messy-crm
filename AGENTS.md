@@ -1,0 +1,2 @@
+- inertia.js skill located in './frontend/node_modules/@inertiajs/react/resources/boost/skills/inertia-react-development/SKILL.blade.php'
+- DO NOT ACCESS terminal browser

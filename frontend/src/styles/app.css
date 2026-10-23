@@ -1,0 +1,163 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #eef1f5;
+  font-family: Arial;
+  color: #243044;
+}
+.top {
+  height: 62px;
+  background: #172335;
+  color: white;
+  padding: 17px 24px;
+  font-size: 22px;
+}
+.wrap { padding: 18px; }
+.stats {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.stat {
+  background: white;
+  padding: 14px 18px;
+  border-radius: 5px;
+  min-width: 170px;
+  box-shadow: 0 1px 3px #ccd;
+}
+.toolbar,
+.panel {
+  background: white;
+  border-radius: 5px;
+  box-shadow: 0 1px 3px #ccd;
+}
+.toolbar {
+  padding: 12px;
+  margin-bottom: 14px;
+}
+.toolbar form {
+  display: flex;
+  gap: 8px;
+}
+.toolbar input,
+.toolbar select,
+input,
+select,
+textarea {
+  padding: 9px;
+  border: 1px solid #bdc7d4;
+  border-radius: 3px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 58% 42%;
+  gap: 14px;
+}
+.panel { overflow: hidden; }
+.panel h2 {
+  font-size: 16px;
+  margin: 0;
+  padding: 14px;
+  border-bottom: 1px solid #dde3ea;
+}
+.list {
+  max-height: 570px;
+  overflow: auto;
+}
+.row {
+  display: grid;
+  grid-template-columns: 1.5fr 1.2fr 0.8fr 0.8fr;
+  padding: 11px 14px;
+  border-bottom: 1px solid #edf0f4;
+  text-decoration: none;
+  color: #243044;
+}
+.row:hover,
+.row.selected { background: #e8f1ff; }
+.muted {
+  font-size: 12px;
+  color: #708096;
+}
+.pill {
+  font-size: 11px;
+  padding: 4px 7px;
+  border-radius: 12px;
+  background: #dfe8f5;
+  display: inline-block;
+}
+.detail { padding: 16px; }
+.detail dl {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 8px;
+}
+.actions {
+  border-top: 1px solid #ddd;
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.actions form { margin: 8px 0; }
+.actions textarea {
+  width: 100%;
+  height: 70px;
+}
+.btn {
+  background: #2869c7;
+  color: white;
+  border: 0;
+  border-radius: 3px;
+  padding: 9px 13px;
+  cursor: pointer;
+}
+.danger { background: #a93333; }
+.newbox {
+  padding: 14px;
+  border-top: 1px solid #ddd;
+}
+.newbox input,
+.newbox select {
+  width: 32%;
+  margin: 3px;
+}
+.error {
+  background: #ffe2e2;
+  color: #8b1f1f;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.toast-region {
+  position: fixed;
+  top: 76px;
+  right: 18px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(320px, calc(100vw - 36px));
+}
+.toast {
+  padding: 10px;
+  border-left: 4px solid transparent;
+  border-radius: 3px;
+  box-shadow: 0 2px 8px #00000022;
+}
+.toast-success {
+  background: #e3f6e8;
+  color: #1d6b32;
+  border-left-color: #2e9e4f;
+}
+.toast-info {
+  background: #e6f0ff;
+  color: #1d4f8b;
+  border-left-color: #3b7dd8;
+}
+.toast-warning {
+  background: #fff4dc;
+  color: #8a5a00;
+  border-left-color: #d99a00;
+}
+.toast-error {
+  background: #ffe2e2;
+  color: #8b1f1f;
+  border-left-color: #c0392b;
+}
