@@ -5,6 +5,7 @@ on:
     branches: [development, main]
   push:
     branches: [development, main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -19,8 +20,35 @@ env:
   ACTIONLINT_VERSION: "1.7.12"
 
 jobs:
-  backend:
-    name: backend
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.14"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Security analysis
+        run: uv run bandit -c pyproject.toml -r crm messycrm -x crm/migrations -ll
+
+  test:
+    name: test
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -40,14 +68,6 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Lint
-        run: |
-          uv run ruff check .
-          uv run ruff format --check .
-
-      - name: Security analysis
-        run: uv run bandit -c pyproject.toml -r crm messycrm -x crm/migrations -ll
-
       - name: Check for missing migrations
         run: uv run python manage.py makemigrations --check --dry-run
 
@@ -57,8 +77,8 @@ jobs:
       - name: Tests
         run: uv run python manage.py test
 
-  frontend:
-    name: frontend
+  build:
+    name: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -83,7 +103,7 @@ jobs:
       - name: Type check
         run: bun run typecheck
 
-      - name: Build
+      - name: Bundle
         run: bun run build
 
   workflows:
@@ -99,3 +119,27 @@ jobs:
         run: |
           bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) "$ACTIONLINT_VERSION"
           ./actionlint -color
+
+  deploy:
+    name: deploy
+    needs: [lint, test, build, workflows]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TARGET_ENV: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    steps:
+      - name: Report intended deployment
+        run: |
+          {
+            echo "## deploy (stub)"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Environment | \`${TARGET_ENV}\` |"
+            echo "| Branch | \`${GITHUB_REF_NAME}\` |"
+            echo "| Commit | \`${GITHUB_SHA}\` |"
+            echo "| Image | \`${GITHUB_REPOSITORY}:sha-${GITHUB_SHA:0:7}\` |"
+            echo
+            echo "No AWS resources are provisioned yet, so nothing was built, pushed, or deployed."
+          } >> "$GITHUB_STEP_SUMMARY"
