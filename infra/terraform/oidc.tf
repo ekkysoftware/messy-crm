@@ -109,17 +109,24 @@ data "aws_iam_policy_document" "github_deploy" {
   }
 
   statement {
-    sid    = "SendDeployCommand"
-    effect = "Allow"
-    actions = [
-      "ssm:SendCommand",
-      "ssm:GetCommandInvocation",
-    ]
+    sid     = "SendDeployCommand"
+    effect  = "Allow"
+    actions = ["ssm:SendCommand"]
     # SendCommand needs the document *and* the instance; the instance alone is denied.
     resources = [
       "arn:aws:ssm:${var.aws_region}::document/AWS-RunShellScript",
       aws_instance.app.arn,
     ]
+  }
+
+  statement {
+    sid     = "ReadDeployCommand"
+    effect  = "Allow"
+    actions = ["ssm:GetCommandInvocation"]
+    # Authorized against the *command*, not the instance: scoping this to the
+    # instance ARN fails with AccessDenied on a resource of
+    # arn:aws:ssm:<region>:<account>:command/*
+    resources = ["arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:command/*"]
   }
 }
 

@@ -53,40 +53,8 @@ fi
 
 region="$(terraform -chdir="$tf_dir" output -raw aws_region)"
 
-command_id="$(aws ssm send-command \
-  --region "$region" \
-  --instance-ids "$instance_id" \
-  --document-name AWS-RunShellScript \
-  --comment "messycrm deploy ${tag}" \
-  --parameters "commands=sudo -n /opt/messycrm/deploy.sh ${tag}" \
-  --query 'Command.CommandId' \
-  --output text)"
-
-echo "command_id=${command_id} instance=${instance_id} tag=${tag}"
-
-status="Pending"
-for _ in $(seq 1 120); do
-  status="$(aws ssm get-command-invocation \
-    --region "$region" \
-    --command-id "$command_id" \
-    --instance-id "$instance_id" \
-    --query 'Status' \
-    --output text 2>/dev/null || echo Pending)"
-  case "$status" in
-    Pending|InProgress|Delayed) sleep 5 ;;
-    *) break ;;
-  esac
-done
-
-aws ssm get-command-invocation \
-  --region "$region" \
-  --command-id "$command_id" \
-  --instance-id "$instance_id" \
-  --query '{status: Status, stdout: StandardOutputContent, stderr: StandardErrorContent}' \
-  --output json
-
-echo "status=${status}"
-
-if [[ "$status" != "Success" ]]; then
-  exit 1
-fi
+# The wait-and-report logic lives in ssm-run.sh so the pipeline and this manual
+# wrapper cannot drift, and so a real API error fails fast instead of looking
+# like a slow command.
+exec "$repo_root/scripts/ssm-run.sh" "$instance_id" "$region" "messycrm deploy ${tag}" \
+  "sudo -n /opt/messycrm/deploy.sh ${tag}"
