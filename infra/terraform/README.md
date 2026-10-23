@@ -47,7 +47,9 @@ names match the workspace:
 terraform init
 
 terraform workspace new dev
-terraform apply -var project_name=messycrm -var environment=dev
+# dev creates the account-wide GitHub OIDC provider (one workspace only).
+terraform apply -var project_name=messycrm -var environment=dev \
+  -var create_github_oidc_provider=true
 
 terraform workspace new prod
 terraform apply -var project_name=messycrm -var environment=prod
@@ -76,7 +78,12 @@ terraform workspace select dev
 
 # 1. Infrastructure: registry, secrets containers, log group, volume, host, EIP.
 #    The unit starts and its configure.sh step fails loudly until step 2 has run.
-terraform apply -var project_name=messycrm -var environment=dev
+#    `create_github_oidc_provider=true` belongs to the FIRST workspace applied
+#    (normally dev): the provider is an account-level singleton. Leaving the flag
+#    out of a later dev apply plans a destroy of that provider and breaks the
+#    deploy role of every workspace.
+terraform apply -var project_name=messycrm -var environment=dev \
+  -var create_github_oidc_provider=true
 
 # 2. Secret values (out of band on purpose: never in Terraform state or plan).
 AWS_REGION=ap-southeast-3 ../../scripts/set-secrets.sh messycrm dev
@@ -258,6 +265,11 @@ workspace's host, address and data are untouched.
   `infra/terraform/terraform.tfstate.d/` safe.
 - **Two workspaces, one code base**: `var.environment` must match the selected workspace; the
   `environment` output exists to make a mismatch obvious.
+- **The GitHub OIDC provider is an account singleton** owned by the workspace that created it
+  (`create_github_oidc_provider = true`, normally `dev`). Applying that workspace without the
+  flag plans `aws_iam_openid_connect_provider.github[0] will be destroyed` and forfeits the
+  deploy role's trust for both environments. Everything else uses a data source, so `prod`
+  never needs the flag.
 - **The first apply produces a host without an image**: the unit restarts until
   `push-image.sh` + `deploy.sh` have run. That window is one documented step, not a fault.
 
