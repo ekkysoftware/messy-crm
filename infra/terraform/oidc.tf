@@ -23,7 +23,16 @@ locals {
   # The GitHub environment that gates this workspace: production approvals on
   # `prod`, none on `dev`.
   github_environment = var.environment == "prod" ? "Production" : "Staging"
-  github_subject     = "repo:${var.github_repository}:environment:${local.github_environment}"
+
+  # GitHub now issues ID-qualified ("immutable") subject claims alongside the
+  # classic form, e.g.
+  #   repo:owner@343379447/repo@1430577435:environment:Staging
+  # Both are accepted: owner and repository names stay exact, only the numeric
+  # ids are wildcarded, so the policy survives GitHub's rollout and a rename.
+  github_subjects = [
+    "repo:${var.github_repository}:environment:${local.github_environment}",
+    "repo:${split("/", var.github_repository)[0]}@*/${split("/", var.github_repository)[1]}@*:environment:${local.github_environment}",
+  ]
   oidc_provider_arn = (
     var.create_github_oidc_provider
     ? aws_iam_openid_connect_provider.github[0].arn
@@ -63,9 +72,9 @@ data "aws_iam_policy_document" "github_trust" {
     # Pinned to one environment: a job outside `Staging`/`Production` cannot
     # assume this role even if it runs in the same repository.
     condition {
-      test     = "StringEquals"
+      test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [local.github_subject]
+      values   = local.github_subjects
     }
   }
 }
