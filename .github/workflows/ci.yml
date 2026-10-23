@@ -13,11 +13,18 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  BUN_VERSION: "1.4.3"
+  UV_VERSION: "0.13.0"
+  ACTIONLINT_VERSION: "1.7.12"
+
 jobs:
   backend:
     name: backend
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      DJANGO_DEBUG: "true"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,7 +33,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          version: "0.13.0"
+          version: ${{ env.UV_VERSION }}
           python-version-file: .python-version
           enable-cache: true
 
@@ -65,7 +72,7 @@ jobs:
       - name: Install bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.4.3"
+          bun-version: ${{ env.BUN_VERSION }}
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -89,8 +96,6 @@ jobs:
           persist-credentials: false
 
       - name: Lint workflow definitions
-        env:
-          ACTIONLINT_VERSION: v1.7.12
         run: |
-          bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) "${ACTIONLINT_VERSION}"
+          bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) "$ACTIONLINT_VERSION"
           ./actionlint -color
