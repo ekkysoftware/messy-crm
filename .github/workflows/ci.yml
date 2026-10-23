@@ -20,8 +20,23 @@ env:
   ACTIONLINT_VERSION: "1.7.12"
 
 jobs:
+  workflows:
+    name: workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Lint workflow definitions
+        run: |
+          bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) "$ACTIONLINT_VERSION"
+          ./actionlint -color
+
   lint:
     name: lint
+    needs: [workflows]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -49,6 +64,7 @@ jobs:
 
   test:
     name: test
+    needs: [workflows]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -79,6 +95,7 @@ jobs:
 
   build:
     name: build
+    needs: [workflows]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -106,23 +123,9 @@ jobs:
       - name: Bundle
         run: bun run build
 
-  workflows:
-    name: workflows
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-
-      - name: Lint workflow definitions
-        run: |
-          bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) "$ACTIONLINT_VERSION"
-          ./actionlint -color
-
   deploy:
     name: deploy
-    needs: [lint, test, build, workflows]
+    needs: [lint, test, build]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
