@@ -75,7 +75,6 @@ VITE_MANIFEST = FRONTEND_DIST / ".vite" / "manifest.json"
 STATICFILES_DIRS = [("crm", FRONTEND_DIST)]
 
 
-
 DJANGO_VITE = {
     "default": {
         "dev_mode": DEBUG,
@@ -91,9 +90,8 @@ INERTIA_SSR_ENABLED = False
 # first `bun run build`.
 # `INERTIA_VERSION` must be identical across instances of a deployment, mtime is
 # only a local fallback: set it from the release id (e.g. the commit SHA) in prod.
-INERTIA_VERSION = (
-    os.environ.get("INERTIA_VERSION")
-    or (str(int(VITE_MANIFEST.stat().st_mtime)) if VITE_MANIFEST.exists() else "dev")
+INERTIA_VERSION = os.environ.get("INERTIA_VERSION") or (
+    str(int(VITE_MANIFEST.stat().st_mtime)) if VITE_MANIFEST.exists() else "dev"
 )
 
 # `collectstatic` target for deployment; WhiteNoise serves it in production while

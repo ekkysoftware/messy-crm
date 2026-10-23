@@ -20,5 +20,29 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "bandit>=1.9.4",
     "ruff>=0.17.1",
+]
+
+[tool.ruff]
+# Generated, vendored, and planning files are not ours to lint.
+extend-exclude = [
+    "crm/migrations",
+    "frontend",
+    "openspec",
+    "staticfiles",
+    ".venv",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Django models carry mutable class attributes by design (choices, Meta.ordering).
+"crm/models.py" = ["RUF012"]
+
+[tool.bandit]
+# Generated and vendored code only; waive findings per line with `# nosec B<id>`.
+exclude_dirs = [
+    "crm/migrations",
+    "frontend",
+    "staticfiles",
+    ".venv",
 ]

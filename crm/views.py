@@ -87,7 +87,9 @@ def export_contacts(request):
     writer = csv.writer(response)
     writer.writerow(["Name", "Email", "Company", "Phone", "Status", "Owner", "Value"])
     for c in Contact.objects.all().order_by("name"):
-        writer.writerow([c.name, c.email, c.company, c.phone, c.status, c.owner, c.value])
+        writer.writerow(
+            [c.name, c.email, c.company, c.phone, c.status, c.owner, c.value]
+        )
     return response
 
 

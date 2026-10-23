@@ -1,6 +1,6 @@
 """Inertia-specific middleware for the CRM app."""
 
-from typing import Callable
+from collections.abc import Callable
 
 from django.http import HttpRequest, HttpResponse
 from inertia.share import share

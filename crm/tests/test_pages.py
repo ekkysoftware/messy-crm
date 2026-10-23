@@ -37,7 +37,10 @@ class DashboardPropsTests(TestCase):
 
     def test_contact_rows_expose_client_fields(self):
         contact = self.make_contact(
-            name="Ekky Example", email="ekky@example.com", company="Altogether", value=1000
+            name="Ekky Example",
+            email="ekky@example.com",
+            company="Altogether",
+            value=1000,
         )
         props = self.props()
 
@@ -126,7 +129,9 @@ class DashboardPropsTests(TestCase):
         activities = self.props(contact=str(contact.id))["selected"]["activities"]
 
         self.assertEqual(len(activities), 20)
-        self.assertEqual([a["body"] for a in activities], [f"note {i}" for i in range(20)])
+        self.assertEqual(
+            [a["body"] for a in activities], [f"note {i}" for i in range(20)]
+        )
         self.assertTrue(all(TIMESTAMP_RE.match(a["createdAt"]) for a in activities))
         self.assertTrue(all(a["createdBy"] == "Interview User" for a in activities))
 

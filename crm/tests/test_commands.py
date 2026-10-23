@@ -37,7 +37,10 @@ class CommandTestCase(InertiaTestCase):
 
     def add_note(self, pk, follow=False, **payload):
         return self.inertia.post(
-            reverse("add_contact_note", args=[pk]), payload, content_type=JSON, follow=follow
+            reverse("add_contact_note", args=[pk]),
+            payload,
+            content_type=JSON,
+            follow=follow,
         )
 
     def delete_contact(self, pk, follow=False, **payload):
@@ -54,14 +57,18 @@ class CommandTestCase(InertiaTestCase):
 
 class CreateContactTests(CommandTestCase):
     def test_valid_creation_stores_contact_and_system_activity(self):
-        response = self.create_contact(name="New Person", value="2500", new_status="qualified")
+        response = self.create_contact(
+            name="New Person", value="2500", new_status="qualified"
+        )
 
         contact = Contact.objects.get(name="New Person")
         self.assertEqual(response.status_code, 302)
         self.assertEqual(contact.status, "qualified")
-        self.assertEqual(contact.value, Decimal("2500"))
+        self.assertEqual(contact.value, Decimal(2500))
         self.assertTrue(
-            Activity.objects.filter(contact=contact, kind="system", body="Contact created").exists()
+            Activity.objects.filter(
+                contact=contact, kind="system", body="Contact created"
+            ).exists()
         )
 
     def test_blank_name_reports_error_and_stores_nothing(self):
@@ -80,7 +87,7 @@ class CreateContactTests(CommandTestCase):
 
     def test_unparsable_value_becomes_zero(self):
         self.create_contact(name="Bad Value", value="not-a-number")
-        self.assertEqual(Contact.objects.get(name="Bad Value").value, Decimal("0"))
+        self.assertEqual(Contact.objects.get(name="Bad Value").value, Decimal(0))
 
     def test_unknown_status_is_coerced_to_lead(self):
         self.create_contact(name="Unknown Status", new_status="bogus")
@@ -202,10 +209,14 @@ class FilterRestorationTests(CommandTestCase):
 
         self.assertEqual(query["q"], ["Alt"])
         self.assertEqual(query["status"], ["lead"])
-        self.assertEqual(query["contact"], [str(Contact.objects.get(name="Filtered").id)])
+        self.assertEqual(
+            query["contact"], [str(Contact.objects.get(name="Filtered").id)]
+        )
 
     def test_status_change_keeps_filters_in_the_redirect(self):
-        response = self.patch_status(self.contact.id, new_status="qualified", q="Ekky", status="lead")
+        response = self.patch_status(
+            self.contact.id, new_status="qualified", q="Ekky", status="lead"
+        )
         query = parse_qs(urlparse(response["Location"]).query)
 
         self.assertEqual(query["q"], ["Ekky"])
@@ -213,7 +224,13 @@ class FilterRestorationTests(CommandTestCase):
         self.assertEqual(query["contact"], [str(self.contact.id)])
 
     def test_filters_survive_the_redirect_into_page_props(self):
-        self.patch_status(self.contact.id, new_status="qualified", q="Ekky", status="lead", follow=True)
+        self.patch_status(
+            self.contact.id,
+            new_status="qualified",
+            q="Ekky",
+            status="lead",
+            follow=True,
+        )
 
         props = self.props()
         self.assertEqual(props["filters"], {"q": "Ekky", "status": "lead"})
