@@ -31,7 +31,6 @@ services:
       DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
       DATABASE_URL: postgres://${POSTGRES_USER:-messycrm}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-messycrm}
       INERTIA_VERSION: ${INERTIA_VERSION:-local}
-      RUN_SEED_CRM: "true"
     ports:
       - "8000:8000"
 
