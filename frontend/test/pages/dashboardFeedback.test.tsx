@@ -22,7 +22,6 @@ describe('Dashboard feedback contract', () => {
   })
 
   it('keeps the contact listed and shows no confirmation while a delete is pending', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     let finish: (() => void) | undefined
     vi.mocked(router.delete).mockImplementationOnce((_url, options) => {
       finish = () => options?.onFinish?.({} as never)
@@ -31,10 +30,12 @@ describe('Dashboard feedback contract', () => {
 
     renderWithQueryClient(<Dashboard />)
 
-    const button = screen.getByRole('button', { name: 'Delete contact' })
-    await user.click(button)
+    await user.click(screen.getByRole('button', { name: 'Delete contact' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
 
-    await waitFor(() => expect(button).toBeDisabled())
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Delete contact' })).toBeDisabled(),
+    )
     // No optimistic removal: the row is still there until the payload arrives.
     expect(screen.getAllByText('Ekky Example').length).toBeGreaterThan(0)
     expect(screen.queryByRole('status')).not.toBeInTheDocument()

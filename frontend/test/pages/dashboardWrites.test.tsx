@@ -44,7 +44,6 @@ describe('Dashboard writes repaint from the response payload', () => {
   })
 
   it('removes a deleted contact and clears the selection', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     vi.mocked(router.delete).mockImplementationOnce((_url, options) => {
       showPage({
         ...twoContacts,
@@ -60,6 +59,7 @@ describe('Dashboard writes repaint from the response payload', () => {
     expect(screen.getAllByText('Ekky Example').length).toBeGreaterThan(0)
 
     await user.click(screen.getByRole('button', { name: 'Delete contact' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
     rerender(<Dashboard />)
 
     expect(screen.queryByText('Ekky Example')).not.toBeInTheDocument()
