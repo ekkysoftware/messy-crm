@@ -321,8 +321,10 @@ jobs:
 
       - name: Resolve image tag
         run: |
-          echo "SHORT=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
-          echo "TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          {
+            echo "SHORT=${GITHUB_SHA::7}"
+            echo "TAG=sha-${GITHUB_SHA::7}"
+          } >> "$GITHUB_ENV"
 
       - name: Read the tag currently deployed
         run: |
