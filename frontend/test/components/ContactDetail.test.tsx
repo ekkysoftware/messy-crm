@@ -1,17 +1,18 @@
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@inertiajs/react', async () => await import('../mocks/inertia'))
 
 import ContactDetail from '@/components/ContactDetail'
 import { contactDetail, filters, statusChoices } from '../fixtures'
+import { renderWithQueryClient } from '../render'
 describe('ContactDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   it('renders the selected contact, its actions and activity history', () => {
-    render(
+    renderWithQueryClient(
       <ContactDetail selected={contactDetail} filters={filters} statusChoices={statusChoices} />,
     )
 
@@ -32,7 +33,9 @@ describe('ContactDetail', () => {
   })
 
   it('prompts to select a contact when nothing is selected', () => {
-    render(<ContactDetail selected={null} filters={filters} statusChoices={statusChoices} />)
+    renderWithQueryClient(
+      <ContactDetail selected={null} filters={filters} statusChoices={statusChoices} />,
+    )
 
     expect(screen.getByText('Select a contact.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Update status' })).toBeNull()

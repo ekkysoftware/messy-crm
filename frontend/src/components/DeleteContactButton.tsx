@@ -1,5 +1,4 @@
-import { router } from '@inertiajs/react'
-
+import { useDeleteContactMutation } from '@/mutations/useContactMutations'
 import type { DashboardFilters } from '@/types'
 
 interface DeleteContactButtonProps {
@@ -8,19 +7,22 @@ interface DeleteContactButtonProps {
 }
 
 export default function DeleteContactButton({ contactId, filters }: DeleteContactButtonProps) {
+  const deleteContact = useDeleteContactMutation(filters)
+
   function remove() {
+    if (deleteContact.isPending) {
+      return
+    }
+
     if (!window.confirm('Delete this contact?')) {
       return
     }
 
-    router.delete(`/contacts/${contactId}/`, {
-      data: { q: filters.q, status: filters.status },
-      preserveScroll: true,
-    })
+    deleteContact.mutate({ contactId })
   }
 
   return (
-    <button type="button" className="btn danger" onClick={remove}>
+    <button type="button" className="btn danger" onClick={remove} disabled={deleteContact.isPending}>
       Delete contact
     </button>
   )

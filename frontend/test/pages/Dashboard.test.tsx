@@ -1,20 +1,29 @@
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@inertiajs/react', async () => await import('../mocks/inertia'))
 
 import Dashboard from '@/pages/crm/Dashboard'
+import type { FlashMessage } from '@/types'
 import { dashboardProps } from '../fixtures'
 import { usePage } from '../mocks/inertia'
+import { renderWithQueryClient } from '../render'
+
+function showPage(
+  props: Partial<typeof dashboardProps> & { errors?: Record<string, string> } = {},
+  flash?: { messages?: FlashMessage[] },
+) {
+  usePage.mockReturnValue({ props: { ...dashboardProps, ...props }, flash })
+}
 
 describe('Dashboard page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    usePage.mockReturnValue({ props: { errors: {} }, flash: { messages: [] } })
+    showPage({}, { messages: [] })
   })
 
   it('renders the screen from page props', () => {
-    render(<Dashboard {...dashboardProps} />)
+    renderWithQueryClient(<Dashboard />)
 
     expect(screen.getByText('Jellybean CRM')).toBeInTheDocument()
     expect(screen.getByText('All contacts')).toBeInTheDocument()
@@ -27,37 +36,33 @@ describe('Dashboard page', () => {
   })
 
   it('renders shared validation errors as a banner', () => {
-    usePage.mockReturnValue({
-      props: { errors: { name: 'Name is required' } },
-      flash: { messages: [] },
-    })
+    showPage({ errors: { name: 'Name is required' } }, { messages: [] })
 
-    render(<Dashboard {...dashboardProps} />)
+    renderWithQueryClient(<Dashboard />)
 
-    expect(screen.getByText('Name is required')).toBeInTheDocument()
+    // The banner and the create form both surface the shared error.
+    expect(screen.getAllByText('Name is required').length).toBeGreaterThan(0)
   })
 
   it('renders flash messages as toasts', () => {
-    usePage.mockReturnValue({
-      props: { errors: {} },
-      flash: { messages: [{ level: 'success', message: 'Contact deleted' }] },
-    })
+    showPage({}, { messages: [{ level: 'success', message: 'Contact deleted' }] })
 
-    render(<Dashboard {...dashboardProps} />)
+    renderWithQueryClient(<Dashboard />)
 
     expect(screen.getByRole('status')).toHaveTextContent('Contact deleted')
   })
 
   it('renders no toast when flash data is absent or empty', () => {
-    usePage.mockReturnValue({ props: { errors: {} } })
-    const { container, rerender } = render(<Dashboard {...dashboardProps} />)
+    showPage({})
+
+    const { container, rerender } = renderWithQueryClient(<Dashboard />)
 
     expect(container.querySelector('.toast')).toBeNull()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
-    usePage.mockReturnValue({ props: { errors: {} }, flash: { messages: [] } })
-    rerender(<Dashboard {...dashboardProps} />)
+    showPage({}, { messages: [] })
+    rerender(<Dashboard />)
 
     expect(container.querySelector('.toast')).toBeNull()
   })

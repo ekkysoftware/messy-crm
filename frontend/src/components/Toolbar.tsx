@@ -1,14 +1,10 @@
 import { router } from '@inertiajs/react'
 import { useState, type FormEvent } from 'react'
 
-import type { DashboardFilters, StatusChoice } from '@/types'
+import { useDashboardView } from '@/queries/useDashboardView'
 
-interface ToolbarProps {
-  filters: DashboardFilters
-  statusChoices: StatusChoice[]
-}
-
-export default function Toolbar({ filters, statusChoices }: ToolbarProps) {
+export default function Toolbar() {
+  const { filters, statusChoices } = useDashboardView()
   const [q, setQ] = useState(filters.q)
   const [status, setStatus] = useState(filters.status)
 
