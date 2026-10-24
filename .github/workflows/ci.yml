@@ -277,6 +277,7 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: read
+      pull-requests: read
       id-token: write
     env:
       TARGET_ENV: prod
@@ -323,10 +324,28 @@ jobs:
           mask-aws-account-id: true
 
       - name: Resolve image tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          short="${GITHUB_SHA::7}"
+          source_short="$short"
+
+          # A pull request merged into main creates a new SHA that development
+          # never built (merge, squash, and rebase all do this). Promote the
+          # image built for the pull request's head instead, but keep
+          # sha-<main short> as the prod tag so release.yml can still find it.
+          head_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+            --jq '[.[] | select(.merged_at != null)][0].head.sha // empty')
+          if [[ -n "$head_sha" ]]; then
+            source_short="${head_sha::7}"
+            echo "main commit came from a merged pull request; source artifact is sha-${source_short}"
+          fi
+
           {
-            echo "SHORT=${GITHUB_SHA::7}"
-            echo "TAG=sha-${GITHUB_SHA::7}"
+            echo "SHORT=${short}"
+            echo "TAG=sha-${short}"
+            echo "SOURCE_SHORT=${source_short}"
+            echo "SOURCE_TAG=sha-${source_short}"
           } >> "$GITHUB_ENV"
 
       - name: Read the tag currently deployed
@@ -342,12 +361,12 @@ jobs:
       - name: Promote the validated digest
         run: |
           digest=$(aws ecr describe-images --repository-name "$SOURCE_ECR_REPOSITORY" \
-            --image-ids imageTag="$TAG" --query 'imageDetails[0].imageDigest' --output text)
+            --image-ids imageTag="$SOURCE_TAG" --query 'imageDetails[0].imageDigest' --output text 2>/dev/null || true)
           if [[ -z "$digest" || "$digest" == "None" ]]; then
-            echo "::error::no validated artifact: ${SOURCE_ECR_REPOSITORY}:${TAG} does not exist; refusing to promote"
+            echo "::error::no validated artifact: ${SOURCE_ECR_REPOSITORY}:${SOURCE_TAG} does not exist; refusing to promote"
             exit 1
           fi
-          echo "validated digest: ${digest}"
+          echo "validated digest: ${digest} from ${SOURCE_ECR_REPOSITORY}:${SOURCE_TAG}"
           echo "IMAGE_DIGEST=$digest" >> "$GITHUB_ENV"
 
           # The prod repository is immutable too, so a re-run reuses the tag it
@@ -408,7 +427,7 @@ jobs:
             echo "| Environment | \`${TARGET_ENV}\` |"
             echo "| Branch | \`${GITHUB_REF_NAME}\` |"
             echo "| Commit | \`${GITHUB_SHA}\` |"
-            echo "| Source | \`${SOURCE_ECR_REPOSITORY}:${TAG}\` |"
+            echo "| Source | \`${SOURCE_ECR_REPOSITORY}:${SOURCE_TAG}\` |"
             echo "| Image | \`${ECR_REGISTRY}/${PROD_ECR_REPOSITORY}:${TAG}\` |"
             echo "| Digest | \`${IMAGE_DIGEST}\` |"
             echo "| URL | ${APP_URL}/ |"
