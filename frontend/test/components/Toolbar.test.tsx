@@ -38,6 +38,20 @@ describe('Toolbar', () => {
     )
   })
 
+  it('applies the status filter immediately when the selection changes', async () => {
+    const user = userEvent.setup()
+    renderWithQueryClient(<Toolbar />)
+
+    await user.type(screen.getByPlaceholderText('Search name, company, email'), 'alt')
+    await user.selectOptions(screen.getByRole('combobox'), 'customer')
+
+    expect(router.get).toHaveBeenCalledWith(
+      '/',
+      { q: 'alt', status: 'customer' },
+      expect.objectContaining({ preserveScroll: true, preserveState: true, replace: true }),
+    )
+  })
+
   it('omits empty filters from the request', async () => {
     const user = userEvent.setup()
     renderWithQueryClient(<Toolbar />)
