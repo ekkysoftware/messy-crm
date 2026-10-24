@@ -76,31 +76,32 @@ cd ../..
 1. `deploy` builds one `linux/amd64` image from the `Dockerfile` and pushes
    `messycrm-dev:sha-<short>`. A re-run of the same commit reuses the tag; ECR
    repositories are `IMMUTABLE`.
-2. `deploy-prod` reads the digest of `messycrm-dev:sha-<short>`, pulls it,
-   re-tags it into `messycrm-prod:sha-<short>`, and asserts the pushed manifest
-   digest is unchanged. It never rebuilds.
+2. `deploy-prod` resolves the source commit — the merged pull request's head
+   SHA on a PR merge, otherwise the pushed commit — reads the digest of
+   `messycrm-dev:sha-<source-short>`, pulls it, re-tags it into
+   `messycrm-prod:sha-<main-short>`, and asserts the pushed manifest digest is
+   unchanged. It never rebuilds.
 3. `release.yml` adds `:<version>` to that same manifest after a successful
    production deploy. `aws ecr put-image` with the unchanged manifest is a
    metadata-only write: same digest, new tag, no layer upload.
 
-## Promotion requires the same commit
+## Promotion follows the pull request
 
-`deploy-prod` refuses a commit that `development` never built. GitHub's merge,
-squash and rebase buttons all create a new SHA, which has no `messycrm-dev`
-image; a pull request from `development` to `main` therefore satisfies the
-checks but fails the artifact gate.
+GitHub's merge, squash and rebase buttons all create a new SHA on `main`, so
+`sha-<main-short>` usually does not exist in `messycrm-dev`. `deploy-prod`
+therefore asks the API which merged pull request produced the commit and
+promotes the image `development` built for that pull request's head. The image
+is re-tagged in `messycrm-prod` as `sha-<main-short>`, so `release.yml` still
+finds it under the deployed commit, and the digest assertion proves no rebuild
+happened.
 
-Promote by fast-forwarding `main` to the commit `development` already deployed:
-
-```bash
-git fetch origin
-git push origin origin/development:main
-```
-
-This is the only flow where `sha-<short>` is identical on both branches, which
-is exactly the property the promotion is meant to prove. If `main` ever needs a
-merge commit, build that exact commit on `development` first or the job will
-fail with `no validated artifact`.
+A push to `main` with no associated pull request (for example a direct
+fast-forward promotion) falls back to `sha-<main-short>`, which must already
+exist. Either path refuses a missing source image with an explicit
+`no validated artifact` error, touching neither the prod registry nor the host.
+If a pull request was merged with an "update branch" commit that never reached
+`development`, build that head on `development` first or re-run the promotion
+for a commit that has a dev image.
 
 ## Release
 
