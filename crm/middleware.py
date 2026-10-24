@@ -13,6 +13,14 @@ def flash_errors(request: HttpRequest, errors: dict[str, str]) -> None:
     request.session[SESSION_ERRORS_KEY] = errors
 
 
+def _first_errors(form) -> dict[str, str]:
+    """Flatten a Django form's errors to one message per field."""
+    return {
+        field: entries[0]["message"]
+        for field, entries in form.errors.get_json_data().items()
+    }
+
+
 class ShareInertiaErrorsMiddleware:
     """Expose one-shot validation errors to the next Inertia page as a prop.
 

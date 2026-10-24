@@ -1,20 +1,31 @@
 from django.urls import path
 
-from . import views
+from .views import *
 
+# `ContactView` serves one verb per route, so each route pins the verb it
+# answers; that keeps the URL contract from widening when the view gains a
+# handler.
 urlpatterns = [
-    path("", views.crm_screen, name="crm"),
-    path("contacts/", views.create_contact_view, name="create_contact"),
-    path("contacts/<int:pk>/", views.delete_contact_view, name="delete_contact"),
+    path("", ContactView.as_view(http_method_names=["get"]), name="crm"),
+    path(
+        "contacts/",
+        ContactView.as_view(http_method_names=["post"]),
+        name="create_contact",
+    ),
+    path(
+        "contacts/<int:pk>/",
+        ContactView.as_view(http_method_names=["delete"]),
+        name="delete_contact",
+    ),
     path(
         "contacts/<int:pk>/status/",
-        views.update_contact_status,
+        ContactView.as_view(http_method_names=["patch"]),
         name="update_contact_status",
     ),
     path(
         "contacts/<int:pk>/notes/",
-        views.add_contact_note,
+        AddContactNoteView.as_view(),
         name="add_contact_note",
     ),
-    path("export/", views.export_contacts, name="export_contacts"),
+    path("export/", ExportContactsView.as_view(), name="export_contacts"),
 ]
