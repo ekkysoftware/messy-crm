@@ -50,6 +50,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in /opt/messycrm/.env}
       INERTIA_VERSION: ${IMAGE_TAG:?set IMAGE_TAG in /opt/messycrm/.env}
       RUN_MIGRATIONS: "true"
+      RUN_SEED_CRM: "false"
     ports:
       - "80:8000"
     logging:

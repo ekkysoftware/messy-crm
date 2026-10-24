@@ -164,6 +164,7 @@ The two files describe the same two services, so only these differences are inte
 | `web.environment.INERTIA_VERSION` = `${IMAGE_TAG}` instead of `${INERTIA_VERSION:-local}` | The Inertia asset version must equal the deployed revision |
 | `web.environment.DATABASE_URL` read from `.env` instead of being assembled inline | `configure.sh` is the single place that knows the generated password, and it writes the URL next to it |
 | `web.environment.RUN_MIGRATIONS: "true"` added | Explicit on the host instead of relying on the entrypoint's default |
+| `web.environment.RUN_SEED_CRM: "false"` | Sample contacts are development-only; production must never seed demo data |
 | `db.ports` removed | The database is never published; `web` reaches it over the Compose network |
 | `db.volumes` bind-mounts `/srv/messycrm/postgres`, and `db.environment.PGDATA` points at `pgdata` inside it | Data lives on the retained EBS volume, not a Docker named volume on the root disk. The mount root holds `lost+found` (created by `mkfs.ext4`), which `initdb` refuses to initialize in, so the cluster lives in a subdirectory of the mount |
 | `logging` (`awslogs`) added to both services | Container output ships to CloudWatch with bounded retention; one stable stream per service (`db`, `web`). Docker's `awslogs` driver has no stream *prefix* option - that field is ECS-only - so the stream name is set explicitly |
@@ -171,7 +172,8 @@ The two files describe the same two services, so only these differences are inte
 The `web` environment *key sets* differ only by `RUN_MIGRATIONS`, and no key of `compose.yml`
 is missing from `compose.prod.yml`; `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`,
 `DJANGO_ALLOWED_HOSTS`, `DJANGO_CSRF_TRUSTED_ORIGINS` and `DATABASE_URL` are identical in
-name and meaning.
+name and meaning. `RUN_SEED_CRM` exists in both files but is `"true"` only in `compose.yml`
+(development) and `"false"` in `compose.prod.yml`.
 
 ## Publishing, deploying, rolling back
 
