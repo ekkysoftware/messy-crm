@@ -138,6 +138,8 @@ jobs:
       id-token: write
     env:
       TARGET_ENV: dev
+      ENVIRONMENT_NAME: Staging
+      AWS_REGION: ${{ vars.AWS_REGION }}
       ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
       ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
       INSTANCE_ID: ${{ vars.INSTANCE_ID }}
@@ -146,6 +148,29 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+
+      - name: Verify the deployment environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A run outside the environment cannot assume the deploy role anyway; this
+          # guard catches the silent failure mode where the environment name is
+          # misspelled and GitHub runs the job without its protection rules.
+          if ! gh api "repos/${GITHUB_REPOSITORY}/environments/${ENVIRONMENT_NAME}" > /tmp/environment.json 2>/tmp/environment.err; then
+            if grep -q 'HTTP 403' /tmp/environment.err; then
+              echo "::warning::cannot inspect '${ENVIRONMENT_NAME}' with the workflow token; relying on the environment gate"
+            else
+              echo "::error::GitHub environment '${ENVIRONMENT_NAME}' does not exist; refusing to deploy without its protection rules"
+              cat /tmp/environment.err
+              exit 1
+            fi
+          elif [[ "$ENVIRONMENT_NAME" == "Production" ]]; then
+            rules=$(jq '.protection_rules | length' /tmp/environment.json)
+            if [[ "${rules:-0}" -eq 0 ]]; then
+              echo "::error::GitHub environment 'Production' has no protection rules; refusing to deploy without approval"
+              exit 1
+            fi
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -231,5 +256,167 @@ jobs:
             echo "| Field | Value |"
             echo "| --- | --- |"
             echo "| Image | \`${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}\` |"
+            echo "| Rolled back to | \`${PREVIOUS_TAG:-nothing}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Promotion is independent of `deploy` (which is Staging-only): a skipped job
+  # in `needs` would skip this one on main. The validated-artifact step below is
+  # the real dependency, so a commit without a dev image is refused.
+  deploy-prod:
+    name: deploy-prod
+    needs: [lint, test, build]
+    if: github.event_name != 'pull_request' && github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: Production
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TARGET_ENV: prod
+      ENVIRONMENT_NAME: Production
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
+      PROD_ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+      SOURCE_ECR_REPOSITORY: ${{ vars.SOURCE_ECR_REPOSITORY }}
+      INSTANCE_ID: ${{ vars.INSTANCE_ID }}
+      APP_URL: ${{ vars.APP_URL }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Verify the deployment environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A run outside the environment cannot assume the deploy role anyway; this
+          # guard catches the silent failure mode where the environment name is
+          # misspelled and GitHub runs the job without its protection rules.
+          if ! gh api "repos/${GITHUB_REPOSITORY}/environments/${ENVIRONMENT_NAME}" > /tmp/environment.json 2>/tmp/environment.err; then
+            if grep -q 'HTTP 403' /tmp/environment.err; then
+              echo "::warning::cannot inspect '${ENVIRONMENT_NAME}' with the workflow token; relying on the environment gate"
+            else
+              echo "::error::GitHub environment '${ENVIRONMENT_NAME}' does not exist; refusing to deploy without its protection rules"
+              cat /tmp/environment.err
+              exit 1
+            fi
+          elif [[ "$ENVIRONMENT_NAME" == "Production" ]]; then
+            rules=$(jq '.protection_rules | length' /tmp/environment.json)
+            if [[ "${rules:-0}" -eq 0 ]]; then
+              echo "::error::GitHub environment 'Production' has no protection rules; refusing to deploy without approval"
+              exit 1
+            fi
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Resolve image tag
+        run: |
+          echo "SHORT=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          echo "TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Read the tag currently deployed
+        run: |
+          previous=$(./scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "read deployed tag" \
+            'sed -n s/^IMAGE_TAG=//p /opt/messycrm/host.env' | jq -r .stdout | tr -d '\r\n')
+          echo "previous tag: ${previous:-none}"
+          echo "PREVIOUS_TAG=$previous" >> "$GITHUB_ENV"
+
+      - name: Log in to ECR
+        run: aws ecr get-login-password | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+      - name: Promote the validated digest
+        run: |
+          digest=$(aws ecr describe-images --repository-name "$SOURCE_ECR_REPOSITORY" \
+            --image-ids imageTag="$TAG" --query 'imageDetails[0].imageDigest' --output text)
+          if [[ -z "$digest" || "$digest" == "None" ]]; then
+            echo "::error::no validated artifact: ${SOURCE_ECR_REPOSITORY}:${TAG} does not exist; refusing to promote"
+            exit 1
+          fi
+          echo "validated digest: ${digest}"
+          echo "IMAGE_DIGEST=$digest" >> "$GITHUB_ENV"
+
+          # The prod repository is immutable too, so a re-run reuses the tag it
+          # already has; a different digest under the same commit tag is a bug.
+          if existing=$(aws ecr describe-images --repository-name "$PROD_ECR_REPOSITORY" \
+              --image-ids imageTag="$TAG" --query 'imageDetails[0].imageDigest' --output text 2>/dev/null); then
+            if [[ "$existing" != "$digest" ]]; then
+              echo "::error::${PROD_ECR_REPOSITORY}:${TAG} already exists with digest ${existing}, not ${digest}"
+              exit 1
+            fi
+            echo "reusing ${PROD_ECR_REPOSITORY}:${TAG} ${digest}"
+            exit 0
+          fi
+
+          docker pull "${ECR_REGISTRY}/${SOURCE_ECR_REPOSITORY}@${digest}"
+          docker tag "${ECR_REGISTRY}/${SOURCE_ECR_REPOSITORY}@${digest}" \
+            "${ECR_REGISTRY}/${PROD_ECR_REPOSITORY}:${TAG}"
+          docker push "${ECR_REGISTRY}/${PROD_ECR_REPOSITORY}:${TAG}"
+          promoted=$(docker buildx imagetools inspect "${ECR_REGISTRY}/${PROD_ECR_REPOSITORY}:${TAG}" --format '{{.Manifest.Digest}}')
+          if [[ "$promoted" != "$digest" ]]; then
+            echo "::error::promotion changed the digest: dev ${digest}, prod ${promoted}"
+            exit 1
+          fi
+          echo "promoted ${PROD_ECR_REPOSITORY}:${TAG} ${promoted}"
+
+      - name: Deploy to the host
+        run: ./scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "deploy ${TAG}" "sudo -n /opt/messycrm/deploy.sh ${TAG}"
+
+      - name: Smoke test
+        run: |
+          for attempt in $(seq 1 12); do
+            if body=$(curl -fsS --max-time 10 "${APP_URL}/"); then
+              echo "$body" | grep -q '<div id="app"' && { echo "dashboard served from ${APP_URL}"; exit 0; }
+            fi
+            echo "attempt ${attempt}: not ready"
+            sleep 5
+          done
+          echo "::error::${APP_URL}/ did not serve the dashboard after deploy"
+          exit 1
+
+      - name: Roll back
+        if: failure() && env.PREVIOUS_TAG != '' && env.PREVIOUS_TAG != 'bootstrap' && env.PREVIOUS_TAG != env.TAG
+        run: |
+          echo "::error::rolling back to ${PREVIOUS_TAG}"
+          ./scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "rollback to ${PREVIOUS_TAG}" \
+            "sudo -n /opt/messycrm/deploy.sh ${PREVIOUS_TAG}"
+          curl -fsS --retry 6 --retry-delay 5 "${APP_URL}/" > /dev/null && echo "rolled back and serving"
+          exit 1
+
+      - name: Summary
+        if: success()
+        run: |
+          {
+            echo "## deploy-prod"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Environment | \`${TARGET_ENV}\` |"
+            echo "| Branch | \`${GITHUB_REF_NAME}\` |"
+            echo "| Commit | \`${GITHUB_SHA}\` |"
+            echo "| Source | \`${SOURCE_ECR_REPOSITORY}:${TAG}\` |"
+            echo "| Image | \`${ECR_REGISTRY}/${PROD_ECR_REPOSITORY}:${TAG}\` |"
+            echo "| Digest | \`${IMAGE_DIGEST}\` |"
+            echo "| URL | ${APP_URL}/ |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summary on failure
+        if: failure()
+        run: |
+          {
+            echo "## deploy-prod failed"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Image | \`${ECR_REGISTRY}/${PROD_ECR_REPOSITORY}:${TAG:-unknown}\` |"
             echo "| Rolled back to | \`${PREVIOUS_TAG:-nothing}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
