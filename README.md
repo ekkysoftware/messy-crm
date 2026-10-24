@@ -93,6 +93,11 @@ cd frontend && bun run typecheck
 This setup is for local interview use. Local data lives in the ignored
 `db.sqlite3` file, and the tests use a separate test database.
 
+## CI/CD
+
+Checks, the `development` -> `main` promotion, and the release flow are
+documented in [docs/ci-cd.md](docs/ci-cd.md).
+
 ## OpenSpec
 
 This project uses [OpenSpec](https://github.com/Fission-AI/OpenSpec) to plan changes. Install the CLI globally with npm (Node.js required):

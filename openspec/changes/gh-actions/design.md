@@ -83,13 +83,15 @@ names in branch protection, so they are frozen once protection is on.
 ```text
 pull request        ──► workflows ─► lint ∥ test ∥ build                 (deploy skipped)
 push to development  ──► workflows ─► lint ∥ test ∥ build ─► deploy
-push to main        ──► workflows ─► lint ∥ test ∥ build ─► deploy ─► deploy-prod (approval)
+push to main        ──► workflows ─► lint ∥ test ∥ build ─► deploy-prod (approval)
 ```
 
 Both jobs are written out in full rather than shared through a reusable workflow. The prod
 job is not a copy of the dev job: it pulls the dev digest instead of building, so sharing
 would leave two `if:` branches inside one shared file — less readable than ~25 duplicated
-lines (role assumption, SSM send, smoke test).
+lines (role assumption, SSM send, smoke test). `deploy-prod` cannot list `deploy` in
+`needs:`, because `deploy` is skipped on `main` and a skipped dependency skips its
+dependants; the "validated artifact exists" check is the real edge between them.
 
 ### 3. Environment mapping is explicit and verified at the start of every deploy job
 

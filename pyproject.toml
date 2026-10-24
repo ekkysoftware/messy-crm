@@ -21,6 +21,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "bandit>=1.9.4",
+    "python-semantic-release>=10.7.0",
     "ruff>=0.17.1",
 ]
 
@@ -46,3 +47,24 @@ exclude_dirs = [
     "staticfiles",
     ".venv",
 ]
+
+[tool.semantic_release]
+# Only `main` releases: the version is cut after the production deploy of the
+# commit that just landed, never from the integration branch.
+version_toml = ["pyproject.toml:project.version"]
+commit_parser = "conventional"
+# The project starts at 0.1.0; a `feat:` on main moves it to 0.2.0 rather than
+# jumping to 1.0.0 before the first stable release.
+allow_zero_version = true
+# `[skip ci]` keeps the bump commit from starting another CI run (and therefore
+# another deploy); GitHub honours it for `push` events.
+commit_message = "chore(release): {version} [skip ci]"
+commit_author = "semantic-release <semantic-release@users.noreply.github.com>"
+
+[tool.semantic_release.branches.main]
+match = "^main$"
+
+[tool.semantic_release.remote]
+# Passed by release.yml; the PAT is needed because the default GITHUB_TOKEN
+# cannot push a tag or bump commit to a protected main.
+token = { env = "GH_TOKEN" }

@@ -17,6 +17,12 @@ variable "create_github_oidc_provider" {
   default     = false
 }
 
+variable "source_environment" {
+  description = "Environment whose validated image the prod workspace promotes."
+  type        = string
+  default     = "dev"
+}
+
 data "aws_caller_identity" "current" {}
 
 locals {
@@ -33,6 +39,23 @@ locals {
     "repo:${var.github_repository}:environment:${local.github_environment}",
     "repo:${split("/", var.github_repository)[0]}@*/${split("/", var.github_repository)[1]}@*:environment:${local.github_environment}",
   ]
+
+  # The release job has no environment gate: it only adds a version tag to an
+  # image that already passed the Production approval, so pinning the trust to
+  # `main` (which is protected) is enough.
+  github_release_subjects = [
+    "repo:${var.github_repository}:ref:refs/heads/main",
+    "repo:${split("/", var.github_repository)[0]}@*/${split("/", var.github_repository)[1]}@*:ref:refs/heads/main",
+  ]
+
+  # Promotion reads the image `dev` validated; the repository lives in the same
+  # account and region but is owned by the `dev` workspace, so its ARN cannot be
+  # taken from `aws_ecr_repository.app` here.
+  source_repository_arn = (
+    "arn:aws:ecr:${var.aws_region}:${data.aws_caller_identity.current.account_id}:repository/${var.project_name}-${var.source_environment}"
+  )
+  is_prod = var.environment == "prod"
+
   oidc_provider_arn = (
     var.create_github_oidc_provider
     ? aws_iam_openid_connect_provider.github[0].arn
@@ -99,6 +122,7 @@ data "aws_iam_policy_document" "github_deploy" {
     actions = [
       "ecr:BatchCheckLayerAvailability",
       "ecr:BatchGetImage",
+      "ecr:DescribeImages",
       "ecr:GetDownloadUrlForLayer",
       "ecr:InitiateLayerUpload",
       "ecr:UploadLayerPart",
@@ -106,6 +130,25 @@ data "aws_iam_policy_document" "github_deploy" {
       "ecr:PutImage",
     ]
     resources = [aws_ecr_repository.app.arn]
+  }
+
+  # Promotion: the prod deploy role pulls the digest dev built from the dev
+  # repository (`docker pull`, `describe-images`). Read is deliberate; write on
+  # the dev repository stays denied so a prod run cannot change dev.
+  dynamic "statement" {
+    for_each = local.is_prod ? [1] : []
+
+    content {
+      sid    = "EcrPromotionRead"
+      effect = "Allow"
+      actions = [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:DescribeImages",
+        "ecr:GetDownloadUrlForLayer",
+      ]
+      resources = [local.source_repository_arn]
+    }
   }
 
   statement {
@@ -140,4 +183,73 @@ resource "aws_iam_role_policy" "github_deploy" {
   name   = "deploy"
   role   = aws_iam_role.github_deploy.id
   policy = data.aws_iam_policy_document.github_deploy.json
+}
+
+# Release role: only in the prod workspace. It adds a version tag to an image
+# that is already running, so it can PutImage on the prod repository but cannot
+# command a host, read a secret, or write to the dev registry.
+data "aws_iam_policy_document" "github_release_trust" {
+  count = local.is_prod ? 1 : 0
+
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [local.oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = local.github_release_subjects
+    }
+  }
+}
+
+resource "aws_iam_role" "github_release" {
+  count = local.is_prod ? 1 : 0
+
+  name               = "${var.project_name}-${var.environment}-gha-release"
+  description        = "GitHub Actions role that tags the deployed prod image with its release version."
+  assume_role_policy = data.aws_iam_policy_document.github_release_trust[0].json
+}
+
+data "aws_iam_policy_document" "github_release" {
+  count = local.is_prod ? 1 : 0
+
+  statement {
+    sid       = "EcrLogin"
+    effect    = "Allow"
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "EcrTagExistingImage"
+    effect = "Allow"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:DescribeImages",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:PutImage",
+    ]
+    resources = [aws_ecr_repository.app.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "github_release" {
+  count = local.is_prod ? 1 : 0
+
+  name   = "release"
+  role   = aws_iam_role.github_release[0].id
+  policy = data.aws_iam_policy_document.github_release[0].json
 }

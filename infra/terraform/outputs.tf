@@ -57,3 +57,13 @@ output "deploy_role_name" {
   description = "Name of the GitHub Actions deploy role."
   value       = aws_iam_role.github_deploy.name
 }
+
+output "release_role_arn" {
+  description = "IAM role GitHub Actions assumes to version-tag the deployed prod image (prod workspace only)."
+  value       = try(aws_iam_role.github_release[0].arn, null)
+}
+
+output "release_role_name" {
+  description = "Name of the GitHub Actions release role (prod workspace only)."
+  value       = try(aws_iam_role.github_release[0].name, null)
+}
