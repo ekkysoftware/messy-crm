@@ -1,0 +1,143 @@
+name: Release
+
+# A release is a consequence of a successful production deploy, never a
+# parallel process: `workflow_run` waits for the whole CI run (gates + the
+# `deploy-prod` job) on `main` to conclude successfully.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+env:
+  UV_VERSION: "0.13.0"
+
+jobs:
+  release:
+    name: release
+    # Only a push-triggered run that deployed counts; a manual `workflow_dispatch`
+    # re-run of an older tag must not cut a new version.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      # Falls back to the workflow token until the PAT exists; the PAT is what
+      # lets this push to a protected `main`.
+      GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+      AWS_REGION: ${{ vars.RELEASE_AWS_REGION }}
+      ECR_REGISTRY: ${{ vars.RELEASE_ECR_REGISTRY }}
+      ECR_REPOSITORY: ${{ vars.RELEASE_ECR_REPOSITORY }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Check out the branch, not a detached SHA: python-semantic-release
+          # resolves the active branch against its release groups before it
+          # commits and pushes the bump.
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+          persist-credentials: false
+
+      - name: Confirm main still points at the deployed commit
+        run: |
+          if [[ "$(git rev-parse HEAD)" != "$HEAD_SHA" ]]; then
+            echo "::error::main moved past ${HEAD_SHA}; the newer commit's CI run will release instead"
+            exit 1
+          fi
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.14"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Cut the release
+        id: release
+        run: |
+          uv run semantic-release version
+          tag=$(git tag --points-at HEAD --list 'v*' | sort -V | tail -1)
+          if [[ -z "$tag" ]]; then
+            echo "no release created for this commit"
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "released=true" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        if: steps.release.outputs.released == 'true'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.RELEASE_ROLE_ARN }}
+          aws-region: ${{ vars.RELEASE_AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Tag the deployed image with the release version
+        if: steps.release.outputs.released == 'true'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          short="${HEAD_SHA::7}"
+          digest=$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="sha-${short}" --query 'imageDetails[0].imageDigest' --output text)
+          if [[ -z "$digest" || "$digest" == "None" ]]; then
+            echo "::error::${ECR_REPOSITORY}:sha-${short} is missing; cannot tag version ${VERSION}"
+            exit 1
+          fi
+
+          if existing=$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" \
+              --image-ids imageTag="$VERSION" --query 'imageDetails[0].imageDigest' --output text 2>/dev/null); then
+            if [[ "$existing" != "$digest" ]]; then
+              echo "::error::${ECR_REPOSITORY}:${VERSION} already exists with digest ${existing}, not ${digest}"
+              exit 1
+            fi
+            echo "reusing ${ECR_REPOSITORY}:${VERSION} ${digest}"
+            exit 0
+          fi
+
+          # Same manifest, new tag: a metadata-only write, no rebuild and no
+          # layer upload. The digest assertion is what proves it.
+          manifest=$(aws ecr batch-get-image --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageDigest="$digest" --query 'images[0].imageManifest' --output text)
+          aws ecr put-image --repository-name "$ECR_REPOSITORY" \
+            --image-tag "$VERSION" --image-manifest "$manifest" > /dev/null
+
+          tagged=$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="$VERSION" --query 'imageDetails[0].imageDigest' --output text)
+          if [[ "$tagged" != "$digest" ]]; then
+            echo "::error::version tag ${VERSION} resolved to ${tagged}, expected ${digest}"
+            exit 1
+          fi
+          echo "tagged ${ECR_REPOSITORY}:${VERSION} ${tagged}"
+
+      - name: Summary
+        if: success() && steps.release.outputs.released == 'true'
+        run: |
+          {
+            echo "## release"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Version | \`${{ steps.release.outputs.version }}\` |"
+            echo "| Tag | \`${{ steps.release.outputs.tag }}\` |"
+            echo "| Commit | \`${HEAD_SHA}\` |"
+            echo "| Image | \`${ECR_REGISTRY}/${ECR_REPOSITORY}:${{ steps.release.outputs.version }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
