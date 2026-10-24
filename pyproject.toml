@@ -21,6 +21,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "bandit>=1.9.4",
+    "coverage[toml]>=7.17.0",
     "python-semantic-release>=10.7.0",
     "ruff>=0.17.1",
 ]
@@ -38,6 +39,32 @@ extend-exclude = [
 [tool.ruff.lint.per-file-ignores]
 # Django models carry mutable class attributes by design (choices, Meta.ordering).
 "crm/models.py" = ["RUF012"]
+
+[tool.coverage.run]
+# Measure the application code, not the tests that exercise it.
+source = ["crm", "messycrm"]
+branch = true
+omit = [
+    "crm/migrations/*",
+    "crm/tests/*",
+    "messycrm/wsgi.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+# The suite covers the app almost completely; keep regressions from slipping in.
+fail_under = 90
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.bandit]
 # Generated and vendored code only; waive findings per line with `# nosec B<id>`.

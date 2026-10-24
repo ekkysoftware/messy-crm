@@ -3,6 +3,12 @@ __pycache__/
 *.pyc
 db.sqlite3
 
+# Coverage artifacts (coverage.py)
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
 # Frontend build output (mounted via STATICFILES_DIRS; .gitkeep keeps the dir)
 frontend/dist/*
 !frontend/dist/.gitkeep
