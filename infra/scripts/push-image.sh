@@ -2,13 +2,13 @@
 # Build the application image for linux/amd64 and push it to the ECR repository
 # of the currently selected Terraform workspace.
 #
-#   scripts/push-image.sh <tag>
+#   infra/scripts/push-image.sh <tag>
 #
 # Tags are immutable in ECR: pushing a tag that already exists fails instead of
 # silently replacing the revision a deployment might still point at.
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 tf_dir="${TF_DIR:-$repo_root/infra/terraform}"
 
 usage() {

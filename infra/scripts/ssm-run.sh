@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run one shell command on the application host over SSM and wait for it.
 #
-#   scripts/ssm-run.sh <instance-id> <region> <comment> <command>
+#   infra/scripts/ssm-run.sh <instance-id> <region> <comment> <command>
 #
 # Prints the command's stdout on success and both streams on failure; exits
 # non-zero unless the remote command reported Success.

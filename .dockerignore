@@ -17,4 +17,4 @@ frontend/dist
 .env
 .pi
 openspec
-scripts
+infra/scripts

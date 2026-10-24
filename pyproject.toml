@@ -42,12 +42,12 @@ extend-exclude = [
 
 [tool.coverage.run]
 # Measure the application code, not the tests that exercise it.
-source = ["crm", "messycrm"]
+source = ["crm", "core"]
 branch = true
 omit = [
     "crm/migrations/*",
     "crm/tests/*",
-    "messycrm/wsgi.py",
+    "core/wsgi.py",
 ]
 
 [tool.coverage.report]

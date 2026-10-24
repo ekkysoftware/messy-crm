@@ -2,7 +2,7 @@
 # Copy the Terraform outputs the workflows need into GitHub environment
 # variables, so a pipeline never reads state.
 #
-#   scripts/publish-outputs.sh [workspace...]      # default: dev
+#   infra/scripts/publish-outputs.sh [workspace...]      # default: dev
 #
 # dev -> Staging, prod -> Production.
 #
@@ -11,7 +11,7 @@
 # a metadata-only tag would be noise), so it cannot read environment variables.
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 tf_dir="${TF_DIR:-$repo_root/infra/terraform}"
 
 workspaces=("$@")

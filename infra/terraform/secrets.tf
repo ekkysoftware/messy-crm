@@ -1,4 +1,4 @@
-# Secret *containers* only: values are written by scripts/set-secrets.sh.
+# Secret *containers* only: values are written by infra/scripts/set-secrets.sh.
 #
 # A Terraform-managed secret version would put the plaintext into
 # terraform.tfstate, which the aws-deployment spec forbids. The cost is that

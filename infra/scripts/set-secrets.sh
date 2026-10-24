@@ -2,7 +2,7 @@
 # Generate the deployment's secret material and store it in Secrets Manager.
 # Prints only the secret names - never the values.
 #
-#   scripts/set-secrets.sh <project-name> <environment>
+#   infra/scripts/set-secrets.sh <project-name> <environment>
 #
 # Re-running rotates both values; the host picks them up on its next start
 # (secret values are read at boot, not watched).
