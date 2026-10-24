@@ -83,6 +83,25 @@ cd ../..
    production deploy. `aws ecr put-image` with the unchanged manifest is a
    metadata-only write: same digest, new tag, no layer upload.
 
+## Promotion requires the same commit
+
+`deploy-prod` refuses a commit that `development` never built. GitHub's merge,
+squash and rebase buttons all create a new SHA, which has no `messycrm-dev`
+image; a pull request from `development` to `main` therefore satisfies the
+checks but fails the artifact gate.
+
+Promote by fast-forwarding `main` to the commit `development` already deployed:
+
+```bash
+git fetch origin
+git push origin origin/development:main
+```
+
+This is the only flow where `sha-<short>` is identical on both branches, which
+is exactly the property the promotion is meant to prove. If `main` ever needs a
+merge commit, build that exact commit on `development` first or the job will
+fail with `no validated artifact`.
+
 ## Release
 
 `release.yml` runs through `workflow_run` after a successful `CI` run on
