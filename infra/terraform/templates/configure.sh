@@ -39,12 +39,12 @@ secret_value() {
 }
 
 if ! django_key="$(secret_value "$DJANGO_SECRET_NAME" DJANGO_SECRET_KEY)"; then
-  echo "missing DJANGO_SECRET_KEY in $DJANGO_SECRET_NAME: run scripts/set-secrets.sh $PROJECT_NAME $ENVIRONMENT, then restart messycrm.service" >&2
+  echo "missing DJANGO_SECRET_KEY in $DJANGO_SECRET_NAME: run infra/scripts/set-secrets.sh $PROJECT_NAME $ENVIRONMENT, then restart messycrm.service" >&2
   exit 1
 fi
 
 if ! db_password="$(secret_value "$DB_SECRET_NAME" POSTGRES_PASSWORD)"; then
-  echo "missing POSTGRES_PASSWORD in $DB_SECRET_NAME: run scripts/set-secrets.sh $PROJECT_NAME $ENVIRONMENT, then restart messycrm.service" >&2
+  echo "missing POSTGRES_PASSWORD in $DB_SECRET_NAME: run infra/scripts/set-secrets.sh $PROJECT_NAME $ENVIRONMENT, then restart messycrm.service" >&2
   exit 1
 fi
 

@@ -47,7 +47,7 @@ first — no Vite process is involved afterwards:
 
 ```bash
 cd frontend && bun install --frozen-lockfile && bun run build && cd ..
-# set DEBUG = False in messycrm/settings.py
+# set DEBUG = False in core/settings.py
 uv run python manage.py runserver --insecure
 ```
 

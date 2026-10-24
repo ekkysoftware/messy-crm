@@ -60,7 +60,7 @@ jobs:
           uv run ruff format --check .
 
       - name: Security analysis
-        run: uv run bandit -c pyproject.toml -r crm messycrm -x crm/migrations -ll
+        run: uv run bandit -c pyproject.toml -r crm core -x crm/migrations -ll
 
   test:
     name: test
@@ -187,7 +187,7 @@ jobs:
 
       - name: Read the tag currently deployed
         run: |
-          previous=$(./scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "read deployed tag" \
+          previous=$(./infra/scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "read deployed tag" \
             'sed -n s/^IMAGE_TAG=//p /opt/messycrm/host.env' | jq -r .stdout | tr -d '\r\n')
           echo "previous tag: ${previous:-none}"
           echo "PREVIOUS_TAG=$previous" >> "$GITHUB_ENV"
@@ -211,7 +211,7 @@ jobs:
           echo "IMAGE_DIGEST=$digest" >> "$GITHUB_ENV"
 
       - name: Deploy to the host
-        run: ./scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "deploy ${TAG}" "sudo -n /opt/messycrm/deploy.sh ${TAG}"
+        run: ./infra/scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "deploy ${TAG}" "sudo -n /opt/messycrm/deploy.sh ${TAG}"
 
       - name: Smoke test
         run: |
@@ -229,7 +229,7 @@ jobs:
         if: failure() && env.PREVIOUS_TAG != '' && env.PREVIOUS_TAG != 'bootstrap' && env.PREVIOUS_TAG != env.TAG
         run: |
           echo "::error::rolling back to ${PREVIOUS_TAG}"
-          ./scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "rollback to ${PREVIOUS_TAG}" \
+          ./infra/scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "rollback to ${PREVIOUS_TAG}" \
             "sudo -n /opt/messycrm/deploy.sh ${PREVIOUS_TAG}"
           curl -fsS --retry 6 --retry-delay 5 "${APP_URL}/" > /dev/null && echo "rolled back and serving"
           exit 1
@@ -350,7 +350,7 @@ jobs:
 
       - name: Read the tag currently deployed
         run: |
-          previous=$(./scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "read deployed tag" \
+          previous=$(./infra/scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "read deployed tag" \
             'sed -n s/^IMAGE_TAG=//p /opt/messycrm/host.env' | jq -r .stdout | tr -d '\r\n')
           echo "previous tag: ${previous:-none}"
           echo "PREVIOUS_TAG=$previous" >> "$GITHUB_ENV"
@@ -393,7 +393,7 @@ jobs:
           echo "promoted ${PROD_ECR_REPOSITORY}:${TAG} ${promoted}"
 
       - name: Deploy to the host
-        run: ./scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "deploy ${TAG}" "sudo -n /opt/messycrm/deploy.sh ${TAG}"
+        run: ./infra/scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "deploy ${TAG}" "sudo -n /opt/messycrm/deploy.sh ${TAG}"
 
       - name: Smoke test
         run: |
@@ -411,7 +411,7 @@ jobs:
         if: failure() && env.PREVIOUS_TAG != '' && env.PREVIOUS_TAG != 'bootstrap' && env.PREVIOUS_TAG != env.TAG
         run: |
           echo "::error::rolling back to ${PREVIOUS_TAG}"
-          ./scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "rollback to ${PREVIOUS_TAG}" \
+          ./infra/scripts/ssm-run.sh "$INSTANCE_ID" "$AWS_REGION" "rollback to ${PREVIOUS_TAG}" \
             "sudo -n /opt/messycrm/deploy.sh ${PREVIOUS_TAG}"
           curl -fsS --retry 6 --retry-delay 5 "${APP_URL}/" > /dev/null && echo "rolled back and serving"
           exit 1

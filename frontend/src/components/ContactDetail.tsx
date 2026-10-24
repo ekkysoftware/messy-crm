@@ -1,8 +1,12 @@
-import { formatCurrency } from '@/lib/format'
-import type { ContactDetail as ContactDetailData, DashboardFilters, StatusChoice } from '@/types'
-import DeleteContactButton from '@/components/DeleteContactButton'
+import { useState } from 'react'
+
+import Button from '@/components/Button'
+import ConfirmPopup from '@/components/ConfirmPopup'
 import NoteForm from '@/components/NoteForm'
 import StatusForm from '@/components/StatusForm'
+import { formatCurrency } from '@/lib/format'
+import { useDeleteContactMutation } from '@/mutations/useContactMutations'
+import type { ContactDetail as ContactDetailData, DashboardFilters, StatusChoice } from '@/types'
 
 interface ContactDetailProps {
   selected: ContactDetailData | null
@@ -11,6 +15,14 @@ interface ContactDetailProps {
 }
 
 export default function ContactDetail({ selected, filters, statusChoices }: ContactDetailProps) {
+  const deleteContact = useDeleteContactMutation(filters)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+
+  function confirmDelete(contactId: number) {
+    setConfirmingDelete(false)
+    deleteContact.mutate({ contactId })
+  }
+
   return (
     <div className="panel">
       <h2>Contact details</h2>
@@ -38,7 +50,20 @@ export default function ContactDetail({ selected, filters, statusChoices }: Cont
                 statusChoices={statusChoices}
               />
               <NoteForm contactId={selected.id} filters={filters} />
-              <DeleteContactButton contactId={selected.id} filters={filters} />
+              <Button
+                label="Delete contact"
+                variant="danger"
+                disabled={deleteContact.isPending}
+                onClick={() => setConfirmingDelete(true)}
+              />
+              {confirmingDelete && (
+                <ConfirmPopup
+                  label="Delete this contact?"
+                  confirmLabel="Delete"
+                  onCancel={() => setConfirmingDelete(false)}
+                  onConfirm={() => confirmDelete(selected.id)}
+                />
+              )}
               <h4>Activity</h4>
               {selected.activities.map((activity, index) => (
                 <p key={`${activity.createdAt}-${index}`}>

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Deploy a published tag by invoking the host's own deploy helper over SSM.
 #
-#   scripts/deploy.sh <tag> [--instance-id <id>]
+#   infra/scripts/deploy.sh <tag> [--instance-id <id>]
 #
 # The host helper (/opt/messycrm/deploy.sh) is the same one CI invokes, so the
 # manual fallback and the pipeline cannot drift. Nothing is provisioned here.
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 tf_dir="${TF_DIR:-$repo_root/infra/terraform}"
 
 usage() {
@@ -56,5 +56,5 @@ region="$(terraform -chdir="$tf_dir" output -raw aws_region)"
 # The wait-and-report logic lives in ssm-run.sh so the pipeline and this manual
 # wrapper cannot drift, and so a real API error fails fast instead of looking
 # like a slow command.
-exec "$repo_root/scripts/ssm-run.sh" "$instance_id" "$region" "messycrm deploy ${tag}" \
+exec "$repo_root/infra/scripts/ssm-run.sh" "$instance_id" "$region" "messycrm deploy ${tag}" \
   "sudo -n /opt/messycrm/deploy.sh ${tag}"

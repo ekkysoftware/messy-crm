@@ -272,6 +272,8 @@ class LegacyDispatchRemovedTests(CommandTestCase):
             reverse("crm"), {"action": "add_contact", "name": "Should Not Exist"}
         )
 
-        self.assertEqual(response.status_code, 200)
+        # The screen is read-only now, so the legacy dispatch is not just inert
+        # but rejected.
+        self.assertEqual(response.status_code, 405)
         self.assertEqual(Contact.objects.count(), before)
         self.assertFalse(Contact.objects.filter(name="Should Not Exist").exists())

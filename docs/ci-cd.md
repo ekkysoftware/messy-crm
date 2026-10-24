@@ -41,7 +41,7 @@ static AWS keys exist in the repository.
 The promotion job additionally reads `vars.SOURCE_ECR_REPOSITORY` (the `dev`
 repository) from the `Production` environment.
 
-`scripts/publish-outputs.sh <workspace>` copies Terraform outputs into those
+`infra/scripts/publish-outputs.sh <workspace>` copies Terraform outputs into those
 variables. Publishing `prod` also writes the release job's repository-scoped
 variables, because `release.yml` deliberately has no GitHub environment (a
 second approval prompt to add a tag to an already-deployed image would be
@@ -68,7 +68,7 @@ terraform workspace select prod
 terraform apply -var environment=prod -var create_github_oidc_provider=false
 
 cd ../..
-./scripts/publish-outputs.sh dev prod
+./infra/scripts/publish-outputs.sh dev prod
 ```
 
 ## Image flow
@@ -136,10 +136,10 @@ Manually deploy an earlier published tag with the workspace that owns the host:
 cd infra/terraform
 terraform workspace select prod
 cd ../..
-./scripts/deploy.sh sha-<short>
+./infra/scripts/deploy.sh sha-<short>
 ```
 
-`scripts/deploy.sh` is a thin SSM wrapper around the same `/opt/messycrm/deploy.sh`
+`infra/scripts/deploy.sh` is a thin SSM wrapper around the same `/opt/messycrm/deploy.sh`
 the pipeline invokes, so manual and automated deploys cannot drift.
 
 ## Diagnostics

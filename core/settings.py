@@ -34,7 +34,7 @@ MIDDLEWARE = [
     "inertia.middleware.InertiaMiddleware",
     "crm.middleware.ShareInertiaErrorsMiddleware",
 ]
-ROOT_URLCONF = "messycrm.urls"
+ROOT_URLCONF = "core.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -49,7 +49,7 @@ TEMPLATES = [
         },
     }
 ]
-WSGI_APPLICATION = "messycrm.wsgi.application"
+WSGI_APPLICATION = "core.wsgi.application"
 # `DATABASE_URL` is read from the environment only (Docker Compose sets it),
 # so local runs and tests keep using SQLite unless it is exported explicitly.
 DATABASES = {
@@ -84,7 +84,7 @@ DJANGO_VITE = {
     }
 }
 
-INERTIA_LAYOUT = "crm/app.html"
+INERTIA_LAYOUT = "app.html"
 INERTIA_SSR_ENABLED = False
 # Busts stale Inertia pages whenever a new bundle is built; "dev" before the
 # first `bun run build`.

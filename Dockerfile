@@ -31,7 +31,7 @@ RUN useradd --create-home --uid 1000 app
 
 COPY --from=backend /app/.venv /app/.venv
 COPY manage.py ./
-COPY messycrm ./messycrm
+COPY core ./core
 COPY crm ./crm
 COPY --from=frontend /app/frontend/dist ./frontend/dist
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
@@ -45,7 +45,7 @@ USER app
 EXPOSE 8000
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["gunicorn", "messycrm.wsgi", \
+CMD ["gunicorn", "core.wsgi", \
      "--bind", "0.0.0.0:8000", \
      "--workers", "3", \
      "--access-logfile", "-", \

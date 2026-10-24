@@ -86,14 +86,14 @@ terraform apply -var project_name=messycrm -var environment=dev \
   -var create_github_oidc_provider=true
 
 # 2. Secret values (out of band on purpose: never in Terraform state or plan).
-AWS_REGION=ap-southeast-3 ../../scripts/set-secrets.sh messycrm dev
+AWS_REGION=ap-southeast-3 ../scripts/set-secrets.sh messycrm dev
 
 # 3. First image, built for linux/amd64 and pushed to this workspace's repository.
-../../scripts/push-image.sh "$(git rev-parse --short HEAD)"
+../scripts/push-image.sh "$(git rev-parse --short HEAD)"
 
 # 4. Deploy it: fresh ECR login, tag switch, service restart (which also picks up
 #    the secret values written in step 2).
-../../scripts/deploy.sh "$(git rev-parse --short HEAD)"
+../scripts/deploy.sh "$(git rev-parse --short HEAD)"
 ```
 
 `terraform destroy`, or the host's own `deploy.sh`, is the only way to move backwards; the
@@ -122,8 +122,8 @@ image tag lives in `/opt/messycrm/host.env` on the host, not in Terraform.
 | --- | --- |
 | `app_url` | `http://<eip>` - the address to open |
 | `public_ip` | Elastic IP, used by the host for `ALLOWED_HOSTS`/CSRF |
-| `ecr_registry`, `ecr_repository_name`, `ecr_repository_url` | Push target for `scripts/push-image.sh` |
-| `instance_id` | SSM target for `scripts/deploy.sh` and `aws ssm start-session` |
+| `ecr_registry`, `ecr_repository_name`, `ecr_repository_url` | Push target for `infra/scripts/push-image.sh` |
+| `instance_id` | SSM target for `infra/scripts/deploy.sh` and `aws ssm start-session` |
 | `instance_role_arn` | Identity the host uses for ECR pull, secrets and logs |
 | `log_group_name` | `aws logs tail "$(terraform output -raw log_group_name)" --follow` |
 | `aws_region`, `environment` | Confirm which environment a command targets |
@@ -177,10 +177,10 @@ name and meaning.
 
 ```bash
 # build for linux/amd64, push <registry>/<repo>:<tag>; refuses a tag that already exists
-scripts/push-image.sh <tag>
+infra/scripts/push-image.sh <tag>
 
 # SSM wrapper: sends `sudo -n /opt/messycrm/deploy.sh <tag>` and prints id + status
-scripts/deploy.sh <tag> [--instance-id <id>]
+infra/scripts/deploy.sh <tag> [--instance-id <id>]
 ```
 
 Both read the target from the selected workspace (`terraform -chdir=infra/terraform output`).
@@ -190,7 +190,7 @@ Terraform.
 
 ## Verifying that secrets never enter state or plan output
 
-The only way a value reaches Secrets Manager is `scripts/set-secrets.sh`; Terraform manages
+The only way a value reaches Secrets Manager is `infra/scripts/set-secrets.sh`; Terraform manages
 containers, not versions. To check the property on a provisioned environment:
 
 ```bash
@@ -230,7 +230,7 @@ Run these once the environment exists. `ws` is the selected workspace; every com
 | 7.1 | `aws logs describe-log-groups --log-group-name-prefix "$(terraform output -raw log_group_name)" --query 'logGroups[0].retentionInDays'` → `14` |
 | 7.2 | `aws logs tail "$(terraform output -raw log_group_name)" --since 10m` shows gunicorn startup and `migrate` output, one stream per service |
 | 8.1 | `aws ecr list-images --repository-name "$(terraform output -raw ecr_repository_name)"` lists the tag; the digest equals `docker inspect --format '{{index .RepoDigests 0}}' <image>` |
-| 8.2 | `scripts/deploy.sh <older-tag>` serves that revision again; a new tag changes the bundle hash under `/static/crm/assets/`; a failing remote command exits non-zero |
+| 8.2 | `infra/scripts/deploy.sh <older-tag>` serves that revision again; a new tag changes the bundle hash under `/static/crm/assets/`; a failing remote command exits non-zero |
 | 8.3 | Every command in this README runs as written in both workspaces |
 | 9.1 | `curl -fsS "$(terraform output -raw app_url)/"` returns the dashboard with a hashed asset, and a status-change command redirects and renders a flash message |
 | 9.2 | Create a contact, then `terraform apply -replace=aws_instance.app …`; the contact is still listed on the same Elastic IP |
@@ -260,7 +260,7 @@ workspace's host, address and data are untouched.
 - **Single host**, no autoscaling, no rolling deploys: a host-level change replaces the
   instance (~1 minute outage, `migrate` re-runs, EIP re-associates, data stays).
 - **Secrets are read at boot**: rotating a secret needs `sudo systemctl restart messycrm` (or
-  any `scripts/deploy.sh` call); there is no watcher.
+  any `infra/scripts/deploy.sh` call); there is no watcher.
 - **Local state, no locking**: one operator, one working copy. Keep
   `infra/terraform/terraform.tfstate.d/` safe.
 - **Two workspaces, one code base**: `var.environment` must match the selected workspace; the
