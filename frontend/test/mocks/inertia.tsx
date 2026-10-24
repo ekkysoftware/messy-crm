@@ -1,7 +1,9 @@
 import type { AnchorHTMLAttributes, FormHTMLAttributes, ReactNode } from 'react'
 import { vi } from 'vitest'
 
-import type { FlashMessage } from '../../src/types'
+import type { FlashMessage, DashboardProps } from '../../src/types'
+
+export type MockPageProps = Partial<DashboardProps> & { errors?: Record<string, string> }
 
 export const router = {
   get: vi.fn(),
@@ -13,7 +15,7 @@ export const router = {
 
 export const usePage = vi.fn(
   (): {
-    props: { errors: Record<string, string> }
+    props: MockPageProps
     flash?: { messages?: FlashMessage[] }
   } => ({ props: { errors: {} }, flash: { messages: [] } }),
 )

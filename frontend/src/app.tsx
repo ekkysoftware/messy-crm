@@ -1,5 +1,7 @@
 import { createInertiaApp, type ResolvedComponent } from '@inertiajs/react'
+import { QueryClientProvider } from '@tanstack/react-query'
 
+import { queryClient } from '@/lib/queryClient'
 import '@/styles/app.css'
 
 type PageModule = { default: ResolvedComponent }
@@ -15,6 +17,7 @@ createInertiaApp({
 
     return (await loadPage()).default
   },
+  withApp: (app) => <QueryClientProvider client={queryClient}>{app}</QueryClientProvider>,
   // Django CSRF: cookie `csrftoken`, header `X-CSRFToken`.
   http: {
     xsrfCookieName: 'csrftoken',

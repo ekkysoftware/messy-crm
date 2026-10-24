@@ -85,7 +85,9 @@ http://127.0.0.1:8001/.
 
 ```bash
 uv run python manage.py check
-uv run python manage.py test          # Django: page props, commands, queries, export
+uv run coverage run manage.py test   # Django suite under coverage
+uv run coverage report               # terminal report (fails under 90%)
+uv run coverage html                 # optional: htmlcov/index.html
 cd frontend && bun run test           # Vitest: components and formatters
 cd frontend && bun run typecheck
 ```

@@ -5,16 +5,11 @@ import ContactList from '@/components/ContactList'
 import StatsRow from '@/components/StatsRow'
 import Toast from '@/components/Toast'
 import Toolbar from '@/components/Toolbar'
-import type { DashboardProps } from '@/types'
+import { useDashboardView } from '@/queries/useDashboardView'
 
-export default function Dashboard({
-  contacts,
-  selected,
-  filters,
-  summary,
-  statusChoices,
-}: DashboardProps) {
+export default function Dashboard() {
   const { errors } = usePage().props
+  const { contacts, selected, filters, summary, statusChoices } = useDashboardView()
 
   return (
     <>
@@ -27,7 +22,7 @@ export default function Dashboard({
           </div>
         ))}
         <StatsRow total={summary.total} pipeline={summary.pipeline} />
-        <Toolbar filters={filters} statusChoices={statusChoices} />
+        <Toolbar />
         <div className="grid">
           <ContactList contacts={contacts} filters={filters} statusChoices={statusChoices} />
           <ContactDetail selected={selected} filters={filters} statusChoices={statusChoices} />

@@ -1,29 +1,33 @@
 import { router } from '@inertiajs/react'
 import { useState, type FormEvent } from 'react'
 
-import type { DashboardFilters, StatusChoice } from '@/types'
+import { useDashboardView } from '@/queries/useDashboardView'
 
-interface ToolbarProps {
-  filters: DashboardFilters
-  statusChoices: StatusChoice[]
-}
-
-export default function Toolbar({ filters, statusChoices }: ToolbarProps) {
+export default function Toolbar() {
+  const { filters, statusChoices } = useDashboardView()
   const [q, setQ] = useState(filters.q)
   const [status, setStatus] = useState(filters.status)
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
+  function navigate(nextQuery: string, nextStatus: string) {
     const params: Record<string, string> = {}
-    if (q.trim()) {
-      params.q = q.trim()
+    if (nextQuery.trim()) {
+      params.q = nextQuery.trim()
     }
-    if (status) {
-      params.status = status
+    if (nextStatus) {
+      params.status = nextStatus
     }
 
     router.get('/', params, { preserveState: true, preserveScroll: true, replace: true })
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    navigate(q, status)
+  }
+
+  function changeStatus(nextStatus: string) {
+    setStatus(nextStatus)
+    navigate(q, nextStatus)
   }
 
   return (
@@ -35,7 +39,11 @@ export default function Toolbar({ filters, statusChoices }: ToolbarProps) {
           placeholder="Search name, company, email"
           onChange={(event) => setQ(event.target.value)}
         />
-        <select name="status" value={status} onChange={(event) => setStatus(event.target.value)}>
+        <select
+          name="status"
+          value={status}
+          onChange={(event) => changeStatus(event.target.value)}
+        >
           <option value="">All statuses</option>
           {statusChoices.map((choice) => (
             <option key={choice.value} value={choice.value}>

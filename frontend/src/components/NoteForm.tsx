@@ -1,5 +1,7 @@
-import { Form } from '@inertiajs/react'
+import { useRef, type FormEvent } from 'react'
 
+import { formField } from '@/lib/formData'
+import { useAddNoteMutation } from '@/mutations/useContactMutations'
 import type { DashboardFilters } from '@/types'
 
 interface NoteFormProps {
@@ -8,22 +10,28 @@ interface NoteFormProps {
 }
 
 export default function NoteForm({ contactId, filters }: NoteFormProps) {
+  const addNote = useAddNoteMutation(filters)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (addNote.isPending) {
+      return
+    }
+
+    const data = new FormData(event.currentTarget)
+    addNote.mutate(
+      { contactId, note: formField(data, 'note') },
+      { onSuccess: () => formRef.current?.reset() },
+    )
+  }
+
   return (
-    <Form
-      action={`/contacts/${contactId}/notes/`}
-      method="post"
-      transform={(data) => ({ ...data, q: filters.q, status: filters.status })}
-      options={{ preserveScroll: true }}
-      resetOnSuccess
-    >
-      {({ processing }) => (
-        <>
-          <textarea name="note" placeholder="Add a note" />
-          <button className="btn" disabled={processing}>
-            Save note
-          </button>
-        </>
-      )}
-    </Form>
+    <form ref={formRef} onSubmit={submit}>
+      <textarea name="note" placeholder="Add a note" />
+      <button className="btn" disabled={addNote.isPending}>
+        Save note
+      </button>
+    </form>
   )
 }
