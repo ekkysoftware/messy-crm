@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.2.2 (2026-10-25)
+
+### Bug Fixes
+
+- **ci**: Rename deploy to deploy to staging and add env url
+  ([`9f614c3`](https://github.com/ekkysoftware/messy-crm/commit/9f614c3d5394f49221c937da7ec8af4c767f467b))
+
+
 ## v0.2.1 (2026-10-25)
 
 ### Bug Fixes
