@@ -27,9 +27,9 @@ export default function NoteForm({ contactId, filters }: NoteFormProps) {
   }
 
   return (
-    <form ref={formRef} onSubmit={submit}>
-      <textarea name="note" placeholder="Add a note" />
-      <button className="btn" disabled={addNote.isPending}>
+    <form className="note-form" ref={formRef} onSubmit={submit}>
+      <textarea name="note" aria-label="Add a note" placeholder="Add a note…" />
+      <button className="btn-ghost" disabled={addNote.isPending}>
         Save note
       </button>
     </form>

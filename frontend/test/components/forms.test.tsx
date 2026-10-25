@@ -33,8 +33,8 @@ describe('NewContactForm', () => {
       <NewContactForm filters={newContactFilters} statusChoices={statusChoices} />,
     )
 
-    await user.type(screen.getByPlaceholderText('Name'), 'Ekky')
-    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.type(screen.getByLabelText('Name'), 'Ekky')
+    await user.click(screen.getByRole('button', { name: 'Create contact' }))
 
     expect(router.post).toHaveBeenCalledWith(
       '/contacts/',
@@ -45,6 +45,51 @@ describe('NewContactForm', () => {
         status: 'lead',
       }),
       expect.objectContaining({ preserveScroll: true }),
+    )
+  })
+
+  it('submits the picked status and previews the name initials', async () => {
+    vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
+      options?.onFinish?.({} as never)
+    })
+    const user = userEvent.setup()
+
+    renderWithQueryClient(
+      <NewContactForm filters={filters} statusChoices={statusChoices} />,
+    )
+
+    expect(screen.queryByText('SL')).not.toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Name'), 'Sarah Lim')
+    expect(screen.getByText('SL')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: 'Customer' }))
+    await user.click(screen.getByRole('button', { name: 'Create contact' }))
+
+    expect(router.post).toHaveBeenCalledWith(
+      '/contacts/',
+      expect.objectContaining({ name: 'Sarah Lim', new_status: 'customer' }),
+      expect.anything(),
+    )
+  })
+
+  it('creates on Cmd+Enter', async () => {
+    vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
+      options?.onFinish?.({} as never)
+    })
+    const user = userEvent.setup()
+
+    renderWithQueryClient(
+      <NewContactForm filters={filters} statusChoices={statusChoices} />,
+    )
+
+    await user.type(screen.getByLabelText('Name'), 'Ekky')
+    await user.keyboard('{Meta>}{Enter}{/Meta}')
+
+    expect(router.post).toHaveBeenCalledWith(
+      '/contacts/',
+      expect.objectContaining({ name: 'Ekky' }),
+      expect.anything(),
     )
   })
 
@@ -69,8 +114,8 @@ describe('NewContactForm', () => {
       <NewContactForm filters={filters} statusChoices={statusChoices} />,
     )
 
-    const nameInput = screen.getByPlaceholderText('Name')
-    const addButton = screen.getByRole('button', { name: 'Add' })
+    const nameInput = screen.getByLabelText('Name')
+    const addButton = screen.getByRole('button', { name: 'Create contact' })
 
     await user.type(nameInput, 'Ekky')
     await user.click(addButton)
@@ -84,6 +129,7 @@ describe('NewContactForm', () => {
 
     await waitFor(() => expect(addButton).toBeEnabled())
     expect(nameInput).toHaveValue('')
+    expect(screen.getByRole('radio', { name: 'Lead' })).toBeChecked()
   })
 })
 
@@ -93,7 +139,7 @@ describe('StatusForm', () => {
     showErrors()
   })
 
-  it('patches the status endpoint for the selected contact', async () => {
+  it('patches the status endpoint as soon as a status is selected', async () => {
     vi.mocked(router.patch).mockImplementationOnce((_url, _data, options) => {
       options?.onFinish?.({} as never)
     })
@@ -108,14 +154,64 @@ describe('StatusForm', () => {
       />,
     )
 
-    await user.selectOptions(screen.getByRole('combobox'), 'customer')
-    await user.click(screen.getByRole('button', { name: 'Update status' }))
+    await user.click(screen.getByRole('button', { name: 'Status: Lead' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'Customer' }))
 
     expect(router.patch).toHaveBeenCalledWith(
       '/contacts/7/status/',
       expect.objectContaining({ new_status: 'customer', q: '', status: '' }),
       expect.objectContaining({ preserveScroll: true }),
     )
+  })
+
+  it('marks the current status and closes the menu on Escape', async () => {
+    const user = userEvent.setup()
+
+    renderWithQueryClient(
+      <StatusForm
+        contactId={1}
+        currentStatus="lead"
+        filters={filters}
+        statusChoices={statusChoices}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Status: Lead' }))
+
+    expect(screen.getByRole('menu', { name: 'Status' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemradio', { name: 'Lead' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(screen.getByRole('menuitemradio', { name: 'Qualified' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('menu', { name: 'Status' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Status: Lead' })).toHaveFocus()
+    expect(router.patch).not.toHaveBeenCalled()
+  })
+
+  it('does not write when the current status is picked again', async () => {
+    const user = userEvent.setup()
+
+    renderWithQueryClient(
+      <StatusForm
+        contactId={1}
+        currentStatus="lead"
+        filters={filters}
+        statusChoices={statusChoices}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Status: Lead' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'Lead' }))
+
+    expect(router.patch).not.toHaveBeenCalled()
+    expect(screen.queryByRole('menu', { name: 'Status' })).not.toBeInTheDocument()
   })
 
   it('shows a validation error for the status field from the page payload', () => {
@@ -148,7 +244,7 @@ describe('NoteForm', () => {
 
     renderWithQueryClient(<NoteForm contactId={3} filters={filters} />)
 
-    const noteInput = screen.getByPlaceholderText('Add a note')
+    const noteInput = screen.getByPlaceholderText('Add a note…')
     await user.type(noteInput, 'Called back')
     await user.click(screen.getByRole('button', { name: 'Save note' }))
 

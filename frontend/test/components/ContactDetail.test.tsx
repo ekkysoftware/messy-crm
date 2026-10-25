@@ -29,9 +29,8 @@ describe('ContactDetail', () => {
     expect(screen.getByText('Status changed from lead to qualified')).toBeInTheDocument()
     expect(screen.getByText('Contact created')).toBeInTheDocument()
     expect(screen.getByText('22 Oct 2026 10:00')).toBeInTheDocument()
-    expect(screen.getAllByText('status').length).toBeGreaterThan(0)
 
-    expect(screen.getByRole('button', { name: 'Update status' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Status: Lead' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save note' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Delete contact' })).toBeInTheDocument()
   })
@@ -42,7 +41,7 @@ describe('ContactDetail', () => {
     )
 
     expect(screen.getByText('Select a contact.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Update status' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Delete contact' })).toBeNull()
   })
 
   it('asks in a popup before deleting and sends nothing until confirmed', async () => {

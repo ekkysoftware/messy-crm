@@ -30,10 +30,13 @@ function showPage(props: DashboardProps) {
 }
 
 function detailPanel(): HTMLElement {
-  const heading = screen.getByRole('heading', { name: 'Contact details' })
-  const panel = heading.closest('.panel')
+  const panel = screen.getByRole('button', { name: 'Delete contact' }).closest('.panel')
   if (!(panel instanceof HTMLElement)) throw new Error('detail panel not found')
   return panel
+}
+
+async function openCreateDialog(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'New contact' }))
 }
 
 describe('Dashboard writes repaint from the response payload', () => {
@@ -92,8 +95,9 @@ describe('Dashboard writes repaint from the response payload', () => {
     const user = userEvent.setup()
 
     const { rerender } = renderWithQueryClient(<Dashboard />)
-    await user.type(screen.getByPlaceholderText('Name'), 'Created Person')
-    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await openCreateDialog(user)
+    await user.type(screen.getByLabelText('Name'), 'Created Person')
+    await user.click(screen.getByRole('button', { name: 'Create contact' }))
     rerender(<Dashboard />)
 
     expect(screen.getByRole('heading', { name: 'Created Person' })).toBeInTheDocument()
@@ -132,8 +136,8 @@ describe('Dashboard writes repaint from the response payload', () => {
     const user = userEvent.setup()
 
     const { rerender } = renderWithQueryClient(<Dashboard />)
-    await user.selectOptions(within(detailPanel()).getByRole('combobox'), 'qualified')
-    await user.click(screen.getByRole('button', { name: 'Update status' }))
+    await user.click(within(detailPanel()).getByRole('button', { name: 'Status: Lead' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'Qualified' }))
     rerender(<Dashboard />)
 
     expect(screen.getByRole('heading', { name: 'Second Person' })).toBeInTheDocument()
@@ -164,7 +168,7 @@ describe('Dashboard writes repaint from the response payload', () => {
     const user = userEvent.setup()
 
     const { rerender } = renderWithQueryClient(<Dashboard />)
-    await user.type(screen.getByPlaceholderText('Add a note'), 'Called customer')
+    await user.type(screen.getByPlaceholderText('Add a note…'), 'Called customer')
     await user.click(screen.getByRole('button', { name: 'Save note' }))
     rerender(<Dashboard />)
 

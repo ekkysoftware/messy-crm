@@ -55,8 +55,9 @@ describe('Dashboard feedback contract', () => {
 
     const { rerender } = renderWithQueryClient(<Dashboard />)
 
-    await user.type(screen.getByPlaceholderText('Name'), 'Nameless')
-    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.click(screen.getByRole('button', { name: 'New contact' }))
+    await user.type(screen.getByLabelText('Name'), 'Nameless')
+    await user.click(screen.getByRole('button', { name: 'Create contact' }))
     rerender(<Dashboard />)
 
     // The banner and the create form both surface the shared error.

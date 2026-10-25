@@ -1,10 +1,18 @@
+import {
+  Building2,
+  CircleDollarSign,
+  CircleDot,
+  Mail,
+  Phone,
+  Trash2,
+  UserRound,
+} from 'lucide-react'
 import { useState } from 'react'
 
-import Button from '@/components/Button'
 import ConfirmPopup from '@/components/ConfirmPopup'
 import NoteForm from '@/components/NoteForm'
 import StatusForm from '@/components/StatusForm'
-import { formatCurrency } from '@/lib/format'
+import { formatCurrency, initials } from '@/lib/format'
 import { useDeleteContactMutation } from '@/mutations/useContactMutations'
 import type { ContactDetail as ContactDetailData, DashboardFilters, StatusChoice } from '@/types'
 
@@ -23,61 +31,118 @@ export default function ContactDetail({ selected, filters, statusChoices }: Cont
     deleteContact.mutate({ contactId })
   }
 
+  if (!selected) {
+    return (
+      <aside className="panel detail-panel">
+        <p className="detail-empty">Select a contact.</p>
+      </aside>
+    )
+  }
+
+  const activityCount = selected.activities.length
+
   return (
-    <div className="panel">
-      <h2>Contact details</h2>
-      <div className="detail">
-        {selected ? (
-          <>
-            <h3>{selected.name}</h3>
-            <dl>
-              <dt>Company</dt>
-              <dd>{selected.company}</dd>
-              <dt>Email</dt>
-              <dd>{selected.email}</dd>
-              <dt>Phone</dt>
-              <dd>{selected.phone}</dd>
-              <dt>Owner</dt>
-              <dd>{selected.owner}</dd>
-              <dt>Value</dt>
-              <dd>{formatCurrency(selected.value)}</dd>
-            </dl>
-            <div className="actions">
-              <StatusForm
-                contactId={selected.id}
-                currentStatus={selected.status}
-                filters={filters}
-                statusChoices={statusChoices}
-              />
-              <NoteForm contactId={selected.id} filters={filters} />
-              <Button
-                label="Delete contact"
-                variant="danger"
-                disabled={deleteContact.isPending}
-                onClick={() => setConfirmingDelete(true)}
-              />
-              {confirmingDelete && (
-                <ConfirmPopup
-                  label="Delete this contact?"
-                  confirmLabel="Delete"
-                  onCancel={() => setConfirmingDelete(false)}
-                  onConfirm={() => confirmDelete(selected.id)}
-                />
-              )}
-              <h4>Activity</h4>
-              {selected.activities.map((activity, index) => (
-                <p key={`${activity.createdAt}-${index}`}>
-                  <span className="pill">{activity.kind}</span> {activity.body}
-                  <br />
-                  <span className="muted">{activity.createdAt}</span>
-                </p>
-              ))}
-            </div>
-          </>
-        ) : (
-          <p>Select a contact.</p>
-        )}
+    <aside className="panel detail-panel">
+      <div className="detail-header">
+        <span className={`avatar avatar-lg avatar-${selected.status}`} aria-hidden="true">
+          {initials(selected.name)}
+        </span>
+        <div className="detail-title">
+          <h2 className="detail-name">{selected.name}</h2>
+          <p className="detail-meta">{selected.company || 'No company'}</p>
+        </div>
+        <div className="detail-actions">
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Delete contact"
+            title="Delete contact"
+            disabled={deleteContact.isPending}
+            onClick={() => setConfirmingDelete(true)}
+          >
+            <Trash2 size={15} aria-hidden="true" />
+          </button>
+        </div>
       </div>
-    </div>
+
+      <dl className="attributes">
+        <div className="attr">
+          <Mail size={14} aria-hidden="true" />
+          <dt>Email</dt>
+          <dd>{selected.email || '—'}</dd>
+        </div>
+        <div className="attr">
+          <Phone size={14} aria-hidden="true" />
+          <dt>Phone</dt>
+          <dd>{selected.phone || '—'}</dd>
+        </div>
+        <div className="attr">
+          <Building2 size={14} aria-hidden="true" />
+          <dt>Company</dt>
+          <dd>{selected.company || '—'}</dd>
+        </div>
+        <div className="attr">
+          <UserRound size={14} aria-hidden="true" />
+          <dt>Owner</dt>
+          <dd>{selected.owner || '—'}</dd>
+        </div>
+        <div className="attr">
+          <CircleDollarSign size={14} aria-hidden="true" />
+          <dt>Value</dt>
+          <dd>{formatCurrency(selected.value)}</dd>
+        </div>
+        <div className="attr attr-status">
+          <CircleDot size={14} aria-hidden="true" />
+          <dt>Status</dt>
+          <dd>
+            <StatusForm
+              key={selected.id}
+              contactId={selected.id}
+              currentStatus={selected.status}
+              filters={filters}
+              statusChoices={statusChoices}
+            />
+          </dd>
+        </div>
+      </dl>
+
+      <div className="detail-spacer" />
+
+      <section className="note-block">
+        <h3 className="section-label">NOTE</h3>
+        <NoteForm contactId={selected.id} filters={filters} />
+      </section>
+
+      <section className="activity">
+        <div className="activity-header">
+          <h3 className="section-label">ACTIVITY</h3>
+          <span className="activity-count">{activityCount === 1 ? '1 event' : `${activityCount} events`}</span>
+        </div>
+        {selected.activities.map((activity, index) => (
+          <div className="event" key={`${activity.createdAt}-${index}`}>
+            <span
+              className={
+                activity.kind === 'status' ? 'event-dot event-dot-status' : 'event-dot'
+              }
+              aria-hidden="true"
+            />
+            <div className="event-text">
+              <p className="event-body">{activity.body}</p>
+              <span className="event-time">{activity.createdAt}</span>
+            </div>
+          </div>
+        ))}
+        {activityCount === 0 && <p className="activity-empty">No activity yet.</p>}
+      </section>
+
+      {confirmingDelete && (
+        <ConfirmPopup
+          label="Delete this contact?"
+          confirmLabel="Delete"
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={() => confirmDelete(selected.id)}
+        />
+      )}
+    </aside>
   )
 }
