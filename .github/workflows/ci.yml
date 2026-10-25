@@ -126,15 +126,17 @@ jobs:
       - name: Bundle
         run: bun run build
 
-  deploy:
-    name: deploy
+  deploy-to-staging:
+    name: Deploy to Staging
     needs: [lint, test, build]
     if: github.event_name != 'pull_request' && github.ref_name != 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: Staging
+    environment:
+      name: Staging
+      url: http://15.232.41.25
     concurrency:
-      group: deploy-dev
+      group: deploy-to-staging
       cancel-in-progress: false
     permissions:
       contents: read
@@ -265,15 +267,17 @@ jobs:
   # Promotion is independent of `deploy` (which is Staging-only): a skipped job
   # in `needs` would skip this one on main. The validated-artifact step below is
   # the real dependency, so a commit without a dev image is refused.
-  deploy-prod:
-    name: deploy-prod
+  deploy-to-prod:
+    name: Deploy to Production
     needs: [lint, test, build]
     if: github.event_name != 'pull_request' && github.ref_name == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: Production
+    environment:
+      name: Production
+      url: http://15.232.150.14
     concurrency:
-      group: deploy-prod
+      group: deploy-to-prod
       cancel-in-progress: false
     permissions:
       contents: read
