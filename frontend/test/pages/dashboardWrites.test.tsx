@@ -30,10 +30,13 @@ function showPage(props: DashboardProps) {
 }
 
 function detailPanel(): HTMLElement {
-  const heading = screen.getByRole('heading', { name: 'Contact details' })
-  const panel = heading.closest('.panel')
+  const panel = screen.getByRole('button', { name: 'Delete contact' }).closest('.panel')
   if (!(panel instanceof HTMLElement)) throw new Error('detail panel not found')
   return panel
+}
+
+async function openCreateDialog(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'New contact' }))
 }
 
 describe('Dashboard writes repaint from the response payload', () => {
@@ -51,6 +54,7 @@ describe('Dashboard writes repaint from the response payload', () => {
         selected: null,
         summary: { total: 1, pipeline: 1000, statusCounts: { lead: 1 } },
       })
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
@@ -87,13 +91,15 @@ describe('Dashboard writes repaint from the response payload', () => {
           email: 'created@example.com',
         },
       })
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
 
     const { rerender } = renderWithQueryClient(<Dashboard />)
-    await user.type(screen.getByPlaceholderText('Name'), 'Created Person')
-    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await openCreateDialog(user)
+    await user.type(screen.getByLabelText('Name'), 'Created Person')
+    await user.click(screen.getByRole('button', { name: 'Create contact' }))
     rerender(<Dashboard />)
 
     expect(screen.getByRole('heading', { name: 'Created Person' })).toBeInTheDocument()
@@ -127,13 +133,14 @@ describe('Dashboard writes repaint from the response payload', () => {
           ],
         },
       })
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
 
     const { rerender } = renderWithQueryClient(<Dashboard />)
-    await user.selectOptions(within(detailPanel()).getByRole('combobox'), 'qualified')
-    await user.click(screen.getByRole('button', { name: 'Update status' }))
+    await user.click(within(detailPanel()).getByRole('button', { name: 'Status: Lead' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'Qualified' }))
     rerender(<Dashboard />)
 
     expect(screen.getByRole('heading', { name: 'Second Person' })).toBeInTheDocument()
@@ -159,16 +166,49 @@ describe('Dashboard writes repaint from the response payload', () => {
           ],
         },
       })
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
 
     const { rerender } = renderWithQueryClient(<Dashboard />)
-    await user.type(screen.getByPlaceholderText('Add a note'), 'Called customer')
+    await user.type(screen.getByPlaceholderText('Add a note…'), 'Called customer')
     await user.click(screen.getByRole('button', { name: 'Save note' }))
     rerender(<Dashboard />)
 
     expect(screen.getByText('Called customer')).toBeInTheDocument()
+  })
+
+  it('opens the edit form prefilled and repaints from the saved payload', async () => {
+    vi.mocked(router.patch).mockImplementationOnce((_url, _data, options) => {
+      showPage({
+        ...twoContacts,
+        contacts: [{ ...contactRow, name: 'Ekky Updated' }, secondRow],
+        selected: { ...contactDetail, name: 'Ekky Updated' },
+      })
+      options?.onSuccess?.({} as never)
+      options?.onFinish?.({} as never)
+    })
+    const user = userEvent.setup()
+
+    const { rerender } = renderWithQueryClient(<Dashboard />)
+    await user.click(screen.getByRole('button', { name: 'Edit contact' }))
+
+    expect(screen.getByRole('heading', { name: 'Edit contact' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toHaveValue('Ekky Example')
+    expect(screen.getByLabelText('Email')).toHaveValue('ekky@example.com')
+
+    await user.clear(screen.getByLabelText('Name'))
+    await user.type(screen.getByLabelText('Name'), 'Ekky Updated')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    rerender(<Dashboard />)
+
+    expect(router.patch).toHaveBeenCalledWith(
+      `/contacts/${contactDetail.id}/`,
+      expect.objectContaining({ name: 'Ekky Updated' }),
+      expect.objectContaining({ preserveScroll: true }),
+    )
+    expect(screen.getByRole('heading', { name: 'Ekky Updated' })).toBeInTheDocument()
   })
 
   it('replaces a cached view with the post-write payload instead of resurrecting it', () => {

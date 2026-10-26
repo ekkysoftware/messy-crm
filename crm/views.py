@@ -7,11 +7,17 @@ from django.shortcuts import get_object_or_404, redirect
 from django.views import View
 from inertia import render as inertia_render
 
-from .forms import ContactCreateForm, NoteForm, StatusChangeForm
+from .forms import ContactCreateForm, ContactUpdateForm, NoteForm, StatusChangeForm
 from .middleware import _first_errors, flash_errors
 from .models import Contact
 from .pages import DASHBOARD_COMPONENT, dashboard_props, return_url
-from .services import add_note, change_status, create_contact, delete_contact
+from .services import (
+    add_note,
+    change_status,
+    create_contact,
+    delete_contact,
+    update_contact,
+)
 
 
 class CommandView(View):
@@ -47,10 +53,10 @@ class CommandView(View):
 class ContactView(CommandView):
     """The dashboard screen and its contact commands.
 
-    One class covers the contact surface: a route renders the screen, and one
-    route per command serves create, re-status and delete. Each route pins the
-    single verb it answers in `urls.py`, so adding a handler here cannot quietly
-    widen another route.
+    One class covers the dashboard and the commands that do not address a
+    single contact resource: create and status change. Each route pins the
+    single verb it answers in `urls.py`, so adding a handler here cannot
+    quietly widen another route.
     """
 
     def get(self, request: HttpRequest) -> HttpResponse:
@@ -90,6 +96,38 @@ class ContactView(CommandView):
 
         change_status(contact=contact, new_status=form.cleaned_data["new_status"])
         messages.success(request, f"Status changed to {contact.status}")
+        return redirect(return_url(q, status, contact.id))
+
+
+class ContactDetailView(CommandView):
+    """Edit or delete one contact.
+
+    Both mutations address the same resource, so one route answers both verbs.
+    The route keeps the historical ``delete_contact`` name for clients that
+    still reverse it.
+    """
+
+    def patch(self, request: HttpRequest, pk: int) -> HttpResponse:
+        """Update a contact's details and status from the edit form."""
+        contact = get_object_or_404(Contact, pk=pk)
+        data = self.payload(request)
+        q, status = self.filters(request, data)
+
+        form = ContactUpdateForm(data)
+        if not form.is_valid():
+            return self.reject(request, form, q, status, contact.id)
+
+        update_contact(
+            contact=contact,
+            name=form.cleaned_data["name"],
+            email=form.cleaned_data["email"],
+            company=form.cleaned_data["company"],
+            owner=form.cleaned_data["owner"],
+            phone=form.cleaned_data["phone"],
+            value=form.cleaned_data["value"],
+            status=form.cleaned_data["new_status"],
+        )
+        messages.success(request, f"Saved {contact.name}")
         return redirect(return_url(q, status, contact.id))
 
     def delete(self, request: HttpRequest, pk: int) -> HttpResponse:

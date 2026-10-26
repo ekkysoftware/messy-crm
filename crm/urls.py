@@ -2,6 +2,10 @@ from django.urls import path
 
 from .views import *
 
+# Both names address the same detail endpoint. `update_contact` is the
+# current name; `delete_contact` remains as an alias for existing clients.
+contact_detail = ContactDetailView.as_view(http_method_names=["delete", "patch"])
+
 # `ContactView` serves one verb per route, so each route pins the verb it
 # answers; that keeps the URL contract from widening when the view gains a
 # handler.
@@ -12,11 +16,8 @@ urlpatterns = [
         ContactView.as_view(http_method_names=["post"]),
         name="create_contact",
     ),
-    path(
-        "contacts/<int:pk>/",
-        ContactView.as_view(http_method_names=["delete"]),
-        name="delete_contact",
-    ),
+    path("contacts/<int:pk>/", contact_detail, name="update_contact"),
+    path("contacts/<int:pk>/", contact_detail, name="delete_contact"),
     path(
         "contacts/<int:pk>/status/",
         ContactView.as_view(http_method_names=["patch"]),

@@ -1,8 +1,8 @@
 """Forms that own validation for the CRM screen's write commands.
 
-These reproduce the original inline rules exactly: a blank name is rejected,
-an unparsable value becomes ``Decimal("0")``, and an unknown status is coerced
-to ``lead`` rather than rejected.
+Creating preserves the original coercion rules: a blank name is rejected,
+an unparsable value becomes ``Decimal("0")``, and an unknown status becomes
+``lead``. Editing rejects invalid values and statuses instead.
 """
 
 from decimal import Decimal, InvalidOperation
@@ -33,6 +33,22 @@ class ContactCreateForm(forms.Form):
         if new_status not in dict(Contact.STATUS_CHOICES):
             return "lead"
         return new_status
+
+
+class ContactUpdateForm(ContactCreateForm):
+    """Editing requires a valid value and status before saving any changes."""
+
+    def clean_value(self):
+        return (
+            Contact._meta.get_field("value")
+            .formfield()
+            .clean(self.cleaned_data["value"])
+        )
+
+    def clean_new_status(self):
+        return forms.ChoiceField(choices=Contact.STATUS_CHOICES).clean(
+            self.cleaned_data["new_status"]
+        )
 
 
 class StatusChangeForm(forms.Form):

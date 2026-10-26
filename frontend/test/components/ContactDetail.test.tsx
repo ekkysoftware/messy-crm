@@ -29,10 +29,10 @@ describe('ContactDetail', () => {
     expect(screen.getByText('Status changed from lead to qualified')).toBeInTheDocument()
     expect(screen.getByText('Contact created')).toBeInTheDocument()
     expect(screen.getByText('22 Oct 2026 10:00')).toBeInTheDocument()
-    expect(screen.getAllByText('status').length).toBeGreaterThan(0)
 
-    expect(screen.getByRole('button', { name: 'Update status' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Status: Lead' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save note' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit contact' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Delete contact' })).toBeInTheDocument()
   })
 
@@ -42,7 +42,26 @@ describe('ContactDetail', () => {
     )
 
     expect(screen.getByText('Select a contact.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Update status' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Edit contact' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Delete contact' })).toBeNull()
+  })
+
+  it('asks the dashboard to open the edit form from the pen action', async () => {
+    const onEdit = vi.fn()
+    const user = userEvent.setup()
+
+    renderWithQueryClient(
+      <ContactDetail
+        selected={contactDetail}
+        filters={filters}
+        statusChoices={statusChoices}
+        onEdit={onEdit}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Edit contact' }))
+
+    expect(onEdit).toHaveBeenCalledOnce()
   })
 
   it('asks in a popup before deleting and sends nothing until confirmed', async () => {
@@ -64,6 +83,7 @@ describe('ContactDetail', () => {
 
   it('deletes the contact once the popup is confirmed', async () => {
     vi.mocked(router.delete).mockImplementationOnce((_url, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()

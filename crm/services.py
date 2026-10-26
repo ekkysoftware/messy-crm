@@ -26,6 +26,42 @@ def create_contact(*, name, email, company, owner, phone, value, status):
 
 
 @transaction.atomic
+def update_contact(*, contact, name, email, company, owner, phone, value, status):
+    """Update a contact and record only the changes worth showing in history."""
+    updates = {
+        "name": name,
+        "email": email,
+        "company": company,
+        "owner": owner,
+        "phone": phone,
+        "value": value,
+        "status": status,
+    }
+    changed = [
+        field
+        for field, new_value in updates.items()
+        if getattr(contact, field) != new_value
+    ]
+    if not changed:
+        return contact
+
+    previous_status = contact.status
+    for field in changed:
+        setattr(contact, field, updates[field])
+    contact.save(update_fields=[*changed, "updated_at"])
+
+    if "status" in changed:
+        Activity.objects.create(
+            contact=contact,
+            kind="status",
+            body=f"Status changed from {previous_status} to {status}",
+        )
+    if any(field != "status" for field in changed):
+        Activity.objects.create(contact=contact, kind="system", body="Contact updated")
+    return contact
+
+
+@transaction.atomic
 def change_status(*, contact, new_status):
     old = contact.status
     contact.status = new_status

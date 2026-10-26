@@ -1,30 +1,32 @@
 export interface VisitSettlement {
+  onSuccess: () => void
   onFinish: () => void
   onCancel: () => void
-  /**
-   * Deliberately inert. This backend reports validation by redirecting with
-   * errors, so Inertia's error event must not settle or reject a write: doing
-   * so would leave the submit control disabled after a rejected form.
-   */
   onError: () => void
 }
 
 /**
  * Converts an Inertia visit into a promise for React Query.
  *
- * A visit settles when it finishes or is cancelled. It never rejects: the
- * redirect that carries validation errors is still a completed visit.
+ * Only a successful visit resolves. Validation errors, cancellation, and visits
+ * that finish without success reject so form success handlers do not run.
  */
 export function visitToPromise(start: (settlement: VisitSettlement) => void): Promise<void> {
-  return new Promise<void>((resolve) => {
+  return new Promise<void>((resolve, reject) => {
     let settled = false
 
-    const settle = () => {
+    const settle = (error?: Error) => {
       if (settled) return
       settled = true
-      resolve()
+      if (error) reject(error)
+      else resolve()
     }
 
-    start({ onFinish: settle, onCancel: settle, onError: () => {} })
+    start({
+      onSuccess: () => settle(),
+      onError: () => settle(new Error('Visit failed validation')),
+      onCancel: () => settle(new Error('Visit cancelled')),
+      onFinish: () => settle(new Error('Visit finished without success')),
+    })
   })
 }

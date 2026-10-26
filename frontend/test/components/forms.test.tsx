@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@inertiajs/react', async () => await import('../mocks/inertia'))
 
+import ContactForm from '@/components/ContactForm'
 import NewContactForm from '@/components/NewContactForm'
 import NoteForm from '@/components/NoteForm'
 import StatusForm from '@/components/StatusForm'
-import { filters, statusChoices } from '../fixtures'
+import { contactDetail, filters, statusChoices } from '../fixtures'
 import { router, usePage } from '../mocks/inertia'
 import { renderWithQueryClient } from '../render'
 
@@ -25,6 +26,7 @@ describe('NewContactForm', () => {
 
   it('posts the entered contact to the create endpoint with the active filters', async () => {
     vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
@@ -33,8 +35,8 @@ describe('NewContactForm', () => {
       <NewContactForm filters={newContactFilters} statusChoices={statusChoices} />,
     )
 
-    await user.type(screen.getByPlaceholderText('Name'), 'Ekky')
-    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.type(screen.getByLabelText('Name'), 'Ekky')
+    await user.click(screen.getByRole('button', { name: 'Create contact' }))
 
     expect(router.post).toHaveBeenCalledWith(
       '/contacts/',
@@ -48,6 +50,53 @@ describe('NewContactForm', () => {
     )
   })
 
+  it('submits the picked status and previews the name initials', async () => {
+    vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
+      options?.onFinish?.({} as never)
+    })
+    const user = userEvent.setup()
+
+    renderWithQueryClient(
+      <NewContactForm filters={filters} statusChoices={statusChoices} />,
+    )
+
+    expect(screen.queryByText('SL')).not.toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Name'), 'Sarah Lim')
+    expect(screen.getByText('SL')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: 'Customer' }))
+    await user.click(screen.getByRole('button', { name: 'Create contact' }))
+
+    expect(router.post).toHaveBeenCalledWith(
+      '/contacts/',
+      expect.objectContaining({ name: 'Sarah Lim', new_status: 'customer' }),
+      expect.anything(),
+    )
+  })
+
+  it('creates on Cmd+Enter', async () => {
+    vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
+      options?.onFinish?.({} as never)
+    })
+    const user = userEvent.setup()
+
+    renderWithQueryClient(
+      <NewContactForm filters={filters} statusChoices={statusChoices} />,
+    )
+
+    await user.type(screen.getByLabelText('Name'), 'Ekky')
+    await user.keyboard('{Meta>}{Enter}{/Meta}')
+
+    expect(router.post).toHaveBeenCalledWith(
+      '/contacts/',
+      expect.objectContaining({ name: 'Ekky' }),
+      expect.anything(),
+    )
+  })
+
   it('shows the server error carried by the page payload', () => {
     showErrors({ name: 'Name is required' })
 
@@ -58,25 +107,30 @@ describe('NewContactForm', () => {
     expect(screen.getByText('Name is required')).toBeInTheDocument()
   })
 
-  it('disables submit while the write is pending and resets after it settles', async () => {
+  it('disables submit while pending and resets and notifies only after success', async () => {
     let finish: (() => void) | undefined
     vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
-      finish = () => options?.onFinish?.({} as never)
+      finish = () => {
+        options?.onSuccess?.({} as never)
+        options?.onFinish?.({} as never)
+      }
     })
     const user = userEvent.setup()
+    const onSaved = vi.fn()
 
     renderWithQueryClient(
-      <NewContactForm filters={filters} statusChoices={statusChoices} />,
+      <NewContactForm filters={filters} statusChoices={statusChoices} onSaved={onSaved} />,
     )
 
-    const nameInput = screen.getByPlaceholderText('Name')
-    const addButton = screen.getByRole('button', { name: 'Add' })
+    const nameInput = screen.getByLabelText('Name')
+    const addButton = screen.getByRole('button', { name: 'Create contact' })
 
     await user.type(nameInput, 'Ekky')
     await user.click(addButton)
 
     await waitFor(() => expect(addButton).toBeDisabled())
     expect(nameInput).toHaveValue('Ekky')
+    expect(onSaved).not.toHaveBeenCalled()
 
     await act(async () => {
       finish?.()
@@ -84,6 +138,81 @@ describe('NewContactForm', () => {
 
     await waitFor(() => expect(addButton).toBeEnabled())
     expect(nameInput).toHaveValue('')
+    expect(onSaved).toHaveBeenCalledOnce()
+    expect(screen.getByRole('radio', { name: 'Lead' })).toBeChecked()
+  })
+})
+
+describe('EditContactForm', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    showErrors()
+  })
+
+  it('prefills the contact and patches the update endpoint', async () => {
+    vi.mocked(router.patch).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
+      options?.onFinish?.({} as never)
+    })
+    const user = userEvent.setup()
+
+    renderWithQueryClient(
+      <ContactForm
+        contact={contactDetail}
+        filters={newContactFilters}
+        statusChoices={statusChoices}
+      />,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Edit contact' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toHaveValue('Ekky Example')
+    expect(screen.getByLabelText('Email')).toHaveValue('ekky@example.com')
+    expect(screen.getByLabelText('Company')).toHaveValue('Altogether')
+    expect(screen.getByLabelText('Phone')).toHaveValue('+62 555 0100')
+    expect(screen.getByLabelText('Owner')).toHaveValue('Mina')
+    expect(screen.getByLabelText('Deal value')).toHaveValue('1000')
+    expect(screen.getByRole('radio', { name: 'Lead' })).toBeChecked()
+
+    await user.clear(screen.getByLabelText('Name'))
+    await user.type(screen.getByLabelText('Name'), 'Ekky Updated')
+    await user.click(screen.getByRole('radio', { name: 'Customer' }))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(router.patch).toHaveBeenCalledWith(
+      `/contacts/${contactDetail.id}/`,
+      expect.objectContaining({
+        name: 'Ekky Updated',
+        email: 'ekky@example.com',
+        company: 'Altogether',
+        owner: 'Mina',
+        phone: '+62 555 0100',
+        value: '1000',
+        new_status: 'customer',
+        q: 'alt',
+        status: 'lead',
+      }),
+      expect.objectContaining({ preserveScroll: true }),
+    )
+  })
+
+  it('saves on Cmd+Enter', async () => {
+    vi.mocked(router.patch).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
+      options?.onFinish?.({} as never)
+    })
+    const user = userEvent.setup()
+
+    renderWithQueryClient(
+      <ContactForm contact={contactDetail} filters={filters} statusChoices={statusChoices} />,
+    )
+
+    await user.keyboard('{Meta>}{Enter}{/Meta}')
+
+    expect(router.patch).toHaveBeenCalledWith(
+      `/contacts/${contactDetail.id}/`,
+      expect.objectContaining({ name: 'Ekky Example' }),
+      expect.anything(),
+    )
   })
 })
 
@@ -93,8 +222,9 @@ describe('StatusForm', () => {
     showErrors()
   })
 
-  it('patches the status endpoint for the selected contact', async () => {
+  it('patches the status endpoint as soon as a status is selected', async () => {
     vi.mocked(router.patch).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
@@ -108,14 +238,64 @@ describe('StatusForm', () => {
       />,
     )
 
-    await user.selectOptions(screen.getByRole('combobox'), 'customer')
-    await user.click(screen.getByRole('button', { name: 'Update status' }))
+    await user.click(screen.getByRole('button', { name: 'Status: Lead' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'Customer' }))
 
     expect(router.patch).toHaveBeenCalledWith(
       '/contacts/7/status/',
       expect.objectContaining({ new_status: 'customer', q: '', status: '' }),
       expect.objectContaining({ preserveScroll: true }),
     )
+  })
+
+  it('marks the current status and closes the menu on Escape', async () => {
+    const user = userEvent.setup()
+
+    renderWithQueryClient(
+      <StatusForm
+        contactId={1}
+        currentStatus="lead"
+        filters={filters}
+        statusChoices={statusChoices}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Status: Lead' }))
+
+    expect(screen.getByRole('menu', { name: 'Status' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemradio', { name: 'Lead' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(screen.getByRole('menuitemradio', { name: 'Qualified' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('menu', { name: 'Status' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Status: Lead' })).toHaveFocus()
+    expect(router.patch).not.toHaveBeenCalled()
+  })
+
+  it('does not write when the current status is picked again', async () => {
+    const user = userEvent.setup()
+
+    renderWithQueryClient(
+      <StatusForm
+        contactId={1}
+        currentStatus="lead"
+        filters={filters}
+        statusChoices={statusChoices}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Status: Lead' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'Lead' }))
+
+    expect(router.patch).not.toHaveBeenCalled()
+    expect(screen.queryByRole('menu', { name: 'Status' })).not.toBeInTheDocument()
   })
 
   it('shows a validation error for the status field from the page payload', () => {
@@ -142,13 +322,14 @@ describe('NoteForm', () => {
 
   it('posts the note to the contact notes endpoint and resets after settling', async () => {
     vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
 
     renderWithQueryClient(<NoteForm contactId={3} filters={filters} />)
 
-    const noteInput = screen.getByPlaceholderText('Add a note')
+    const noteInput = screen.getByPlaceholderText('Add a note…')
     await user.type(noteInput, 'Called back')
     await user.click(screen.getByRole('button', { name: 'Save note' }))
 
