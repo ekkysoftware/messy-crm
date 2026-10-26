@@ -6,6 +6,7 @@ both succeed or both roll back.
 """
 
 from django.db import transaction
+from django.utils import timezone
 
 from .models import Activity, Contact
 
@@ -83,8 +84,28 @@ def add_note(*, contact, body):
 
 @transaction.atomic
 def bulk_change_status(*, ids, new_status):
-    """Move every listed contact to the same status in one statement."""
-    return Contact.objects.filter(pk__in=ids).update(status=new_status)
+    """Move every listed contact to the same status in one statement.
+
+    ``QuerySet.update`` skips ``auto_now`` fields and bypasses signals, so
+    ``updated_at`` is set explicitly and a status activity is recorded for
+    each contact whose status actually changes.
+    """
+    contacts = list(Contact.objects.filter(pk__in=ids))
+    changed = [contact for contact in contacts if contact.status != new_status]
+    updated = Contact.objects.filter(pk__in=[c.pk for c in changed]).update(
+        status=new_status, updated_at=timezone.now()
+    )
+    Activity.objects.bulk_create(
+        [
+            Activity(
+                contact=contact,
+                kind="status",
+                body=f"Status changed from {contact.status} to {new_status}",
+            )
+            for contact in changed
+        ]
+    )
+    return updated
 
 
 @transaction.atomic
