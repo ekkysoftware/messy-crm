@@ -18,6 +18,8 @@ env:
   BUN_VERSION: "1.4.3"
   UV_VERSION: "0.13.0"
   ACTIONLINT_VERSION: "1.7.12"
+  NODE_VERSION: "22"
+  PI_VERSION: "1.4.0"
 
 jobs:
   workflows:
@@ -126,9 +128,102 @@ jobs:
       - name: Bundle
         run: bun run build
 
+  deepseek-code-review:
+    name: deepseek-code-review
+    needs: [lint, test, build]
+    if: >-
+      (github.event_name == 'pull_request' && github.base_ref != 'main' && github.event.pull_request.head.repo.full_name == github.repository)
+      || (github.event_name != 'pull_request' && github.ref_name != 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Collect the diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [[ -z "$BASE" || "$BASE" =~ ^0+$ ]]; then
+            BASE=$(git rev-parse "${HEAD}~1" 2>/dev/null || git rev-list --max-parents=0 "$HEAD")
+          fi
+          git diff "$BASE...$HEAD" > /tmp/change.diff
+          if [[ ! -s /tmp/change.diff ]]; then
+            echo "::notice::nothing to review for ${HEAD}"
+            echo "SKIP=1" >> "$GITHUB_ENV"
+          fi
+          if [[ "$(wc -c < /tmp/change.diff)" -gt 150000 ]]; then
+            echo "::warning::diff exceeds 150 KB and was truncated for review"
+          fi
+          head -c 150000 /tmp/change.diff > /tmp/review-input.diff
+
+      - uses: actions/setup-node@v5
+        if: env.SKIP != '1'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pi
+        if: env.SKIP != '1'
+        run: npm install -g --ignore-scripts "@earendil-works/pi-coding-agent@${PI_VERSION}"
+
+      - name: Review
+        if: env.SKIP != '1'
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          prompt='You are reviewing a diff for messy-crm: a Django + DRF backend and a React/Inertia frontend.
+
+          The diff is prepended to this prompt. Judge only the changed lines; use read, grep, and find to check the
+          surrounding code. Read AGENTS.md, .pi/skills/django-reviewer/SKILL.md, and .pi/skills/cdrf-expert/SKILL.md
+          first and follow their guidance.
+
+          Report real defects only: bugs, security problems, unsafe migrations, DRF or ORM anti-patterns, wrong
+          HTTP semantics, and new behavior without tests. Ignore formatting and style that ruff already enforces.
+
+          Output a "## Findings" heading, then one bullet per finding as
+          "- [blocking|non-blocking] path:line - what is wrong - how to fix it".
+          Use "- none" when nothing is wrong.
+          End with exactly one final line, either "VERDICT: pass" or "VERDICT: block".
+          Reserve VERDICT: block for correctness, security, or data-loss risk; everything else is non-blocking.'
+
+          pi --print --model deepseek/deepseek-flash --tools read,grep,find,ls \
+            "$prompt" < /tmp/review-input.diff > /tmp/review.md
+          echo "--- review ---"
+          cat /tmp/review.md
+
+      - name: Report
+        if: env.SKIP != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { echo '<!-- deepseek-code-review -->'; cat /tmp/review.md; } > /tmp/comment.md
+          cat /tmp/comment.md >> "$GITHUB_STEP_SUMMARY"
+
+          number="${{ github.event.pull_request.number }}"
+          if [[ -z "$number" ]]; then
+            number=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].number // empty')
+          fi
+          if [[ -n "$number" ]]; then
+            gh pr comment "$number" --body-file /tmp/comment.md
+          fi
+
+          verdict=$(grep -oE '^VERDICT: (pass|block)$' /tmp/review.md | tail -1 | awk '{print $2}')
+          if [[ -z "$verdict" ]]; then
+            echo "::warning::review produced no VERDICT line; not blocking"
+          elif [[ "$verdict" == "block" ]]; then
+            echo "::error::deepseek-code-review blocked this change"
+            exit 1
+          fi
+
   deploy-to-staging:
     name: Deploy to Staging
-    needs: [lint, test, build]
+    needs: [deepseek-code-review]
     if: github.event_name != 'pull_request' && github.ref_name != 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
