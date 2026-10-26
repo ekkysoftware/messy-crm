@@ -83,6 +83,7 @@ describe('ContactDetail', () => {
 
   it('deletes the contact once the popup is confirmed', async () => {
     vi.mocked(router.delete).mockImplementationOnce((_url, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()

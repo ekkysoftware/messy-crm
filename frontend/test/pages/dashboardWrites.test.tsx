@@ -54,6 +54,7 @@ describe('Dashboard writes repaint from the response payload', () => {
         selected: null,
         summary: { total: 1, pipeline: 1000, statusCounts: { lead: 1 } },
       })
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
@@ -90,6 +91,7 @@ describe('Dashboard writes repaint from the response payload', () => {
           email: 'created@example.com',
         },
       })
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
@@ -131,6 +133,7 @@ describe('Dashboard writes repaint from the response payload', () => {
           ],
         },
       })
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
@@ -163,6 +166,7 @@ describe('Dashboard writes repaint from the response payload', () => {
           ],
         },
       })
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
@@ -182,6 +186,7 @@ describe('Dashboard writes repaint from the response payload', () => {
         contacts: [{ ...contactRow, name: 'Ekky Updated' }, secondRow],
         selected: { ...contactDetail, name: 'Ekky Updated' },
       })
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()

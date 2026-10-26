@@ -50,11 +50,11 @@ export function useCreateContactMutation(filters: DashboardFilters) {
 
   return useMutation<void, Error, CreateContactInput>({
     mutationFn: (input) =>
-      visitToPromise(({ onFinish, onCancel }) =>
+      visitToPromise((callbacks) =>
         router.post(
           '/contacts/',
           { ...input, ...activeFilters(filters) },
-          { preserveScroll: true, onFinish, onCancel },
+          { preserveScroll: true, ...callbacks },
         ),
       ),
     onSuccess: () => invalidateDashboard(queryClient),
@@ -66,11 +66,11 @@ export function useUpdateContactMutation(filters: DashboardFilters) {
 
   return useMutation<void, Error, UpdateContactInput>({
     mutationFn: ({ contactId, ...input }) =>
-      visitToPromise(({ onFinish, onCancel }) =>
+      visitToPromise((callbacks) =>
         router.patch(
           `/contacts/${contactId}/`,
           { ...input, ...activeFilters(filters) },
-          { preserveScroll: true, onFinish, onCancel },
+          { preserveScroll: true, ...callbacks },
         ),
       ),
     onSuccess: () => invalidateDashboard(queryClient),
@@ -82,11 +82,11 @@ export function useUpdateStatusMutation(filters: DashboardFilters) {
 
   return useMutation<void, Error, StatusChangeInput>({
     mutationFn: ({ contactId, new_status }) =>
-      visitToPromise(({ onFinish, onCancel }) =>
+      visitToPromise((callbacks) =>
         router.patch(
           `/contacts/${contactId}/status/`,
           { new_status, ...activeFilters(filters) },
-          { preserveScroll: true, onFinish, onCancel },
+          { preserveScroll: true, ...callbacks },
         ),
       ),
     onSuccess: () => invalidateDashboard(queryClient),
@@ -98,11 +98,11 @@ export function useAddNoteMutation(filters: DashboardFilters) {
 
   return useMutation<void, Error, NoteInput>({
     mutationFn: ({ contactId, note }) =>
-      visitToPromise(({ onFinish, onCancel }) =>
+      visitToPromise((callbacks) =>
         router.post(
           `/contacts/${contactId}/notes/`,
           { note, ...activeFilters(filters) },
-          { preserveScroll: true, onFinish, onCancel },
+          { preserveScroll: true, ...callbacks },
         ),
       ),
     onSuccess: () => invalidateDashboard(queryClient),
@@ -114,12 +114,11 @@ export function useDeleteContactMutation(filters: DashboardFilters) {
 
   return useMutation<void, Error, DeleteContactInput>({
     mutationFn: ({ contactId }) =>
-      visitToPromise(({ onFinish, onCancel }) =>
+      visitToPromise((callbacks) =>
         router.delete(`/contacts/${contactId}/`, {
           data: activeFilters(filters),
           preserveScroll: true,
-          onFinish,
-          onCancel,
+          ...callbacks,
         }),
       ),
     onSuccess: () => invalidateDashboard(queryClient),

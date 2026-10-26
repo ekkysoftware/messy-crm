@@ -943,7 +943,7 @@ button.nav-item:disabled {
 }
 
 .status-menu-option:focus-visible {
-  outline: 2px solid var(--accent-light);
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 

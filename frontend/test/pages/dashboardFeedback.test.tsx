@@ -24,7 +24,10 @@ describe('Dashboard feedback contract', () => {
   it('keeps the contact listed and shows no confirmation while a delete is pending', async () => {
     let finish: (() => void) | undefined
     vi.mocked(router.delete).mockImplementationOnce((_url, options) => {
-      finish = () => options?.onFinish?.({} as never)
+      finish = () => {
+        options?.onSuccess?.({} as never)
+        options?.onFinish?.({} as never)
+      }
     })
     const user = userEvent.setup()
 
@@ -49,6 +52,7 @@ describe('Dashboard feedback contract', () => {
   it('shows only the payload error after a rejected write', async () => {
     vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
       showPage({ ...dashboardProps, errors: { name: 'Name is required' } })
+      options?.onError?.({ name: 'Name is required' })
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
@@ -59,6 +63,12 @@ describe('Dashboard feedback contract', () => {
     await user.type(screen.getByLabelText('Name'), 'Nameless')
     await user.click(screen.getByRole('button', { name: 'Create contact' }))
     rerender(<Dashboard />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Create contact' })).toBeEnabled(),
+    )
+    expect(screen.getByRole('dialog', { name: 'New contact' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toHaveValue('Nameless')
 
     // The banner and the create form both surface the shared error.
     expect(screen.getAllByText('Name is required').length).toBeGreaterThan(0)

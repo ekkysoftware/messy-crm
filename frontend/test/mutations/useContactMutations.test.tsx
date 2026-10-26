@@ -37,6 +37,7 @@ describe('contact mutation hooks', () => {
   it('creates a contact with the active filters and invalidates the dashboard', async () => {
     const invalidateSpy = vi.fn().mockResolvedValue(undefined)
     vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
 
@@ -79,6 +80,7 @@ describe('contact mutation hooks', () => {
   it('patches a status with the active filters and invalidates the dashboard', async () => {
     const invalidateSpy = vi.fn().mockResolvedValue(undefined)
     vi.mocked(router.patch).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
 
@@ -103,6 +105,7 @@ describe('contact mutation hooks', () => {
   it('adds a note with the active filters and invalidates the dashboard', async () => {
     const invalidateSpy = vi.fn().mockResolvedValue(undefined)
     vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
 
@@ -127,6 +130,7 @@ describe('contact mutation hooks', () => {
   it('deletes a contact with the active filters and invalidates the dashboard', async () => {
     const invalidateSpy = vi.fn().mockResolvedValue(undefined)
     vi.mocked(router.delete).mockImplementationOnce((_url, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
 
@@ -150,7 +154,10 @@ describe('contact mutation hooks', () => {
   it('stays pending until the visit settles', async () => {
     let finish: (() => void) | undefined
     vi.mocked(router.delete).mockImplementationOnce((_url, options) => {
-      finish = () => options?.onFinish?.({} as never)
+      finish = () => {
+        options?.onSuccess?.({} as never)
+        options?.onFinish?.({} as never)
+      }
     })
 
     const { result } = renderMutation(() => useDeleteContactMutation(filters))

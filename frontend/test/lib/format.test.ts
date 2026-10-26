@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatCurrency } from '../../src/lib/format'
+import { formatCurrency, initials } from '../../src/lib/format'
 
 describe('formatCurrency', () => {
   it('separates thousands like the previous dashboard script', () => {
@@ -15,5 +15,13 @@ describe('formatCurrency', () => {
 
   it('accepts numeric strings from props', () => {
     expect(formatCurrency('2500')).toBe('$2,500')
+  })
+})
+
+describe('initials', () => {
+  it('takes whole code points before uppercasing', () => {
+    expect(initials('𐐨lpha 🧑🏽 Person')).toBe('𐐀🧑')
+    expect(initials(' Ethan   Wong ')).toBe('EW')
+    expect(initials('  ')).toBe('?')
   })
 })

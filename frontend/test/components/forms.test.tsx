@@ -26,6 +26,7 @@ describe('NewContactForm', () => {
 
   it('posts the entered contact to the create endpoint with the active filters', async () => {
     vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
@@ -51,6 +52,7 @@ describe('NewContactForm', () => {
 
   it('submits the picked status and previews the name initials', async () => {
     vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
@@ -76,6 +78,7 @@ describe('NewContactForm', () => {
 
   it('creates on Cmd+Enter', async () => {
     vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
@@ -104,15 +107,19 @@ describe('NewContactForm', () => {
     expect(screen.getByText('Name is required')).toBeInTheDocument()
   })
 
-  it('disables submit while the write is pending and resets after it settles', async () => {
+  it('disables submit while pending and resets and notifies only after success', async () => {
     let finish: (() => void) | undefined
     vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
-      finish = () => options?.onFinish?.({} as never)
+      finish = () => {
+        options?.onSuccess?.({} as never)
+        options?.onFinish?.({} as never)
+      }
     })
     const user = userEvent.setup()
+    const onSaved = vi.fn()
 
     renderWithQueryClient(
-      <NewContactForm filters={filters} statusChoices={statusChoices} />,
+      <NewContactForm filters={filters} statusChoices={statusChoices} onSaved={onSaved} />,
     )
 
     const nameInput = screen.getByLabelText('Name')
@@ -123,6 +130,7 @@ describe('NewContactForm', () => {
 
     await waitFor(() => expect(addButton).toBeDisabled())
     expect(nameInput).toHaveValue('Ekky')
+    expect(onSaved).not.toHaveBeenCalled()
 
     await act(async () => {
       finish?.()
@@ -130,6 +138,7 @@ describe('NewContactForm', () => {
 
     await waitFor(() => expect(addButton).toBeEnabled())
     expect(nameInput).toHaveValue('')
+    expect(onSaved).toHaveBeenCalledOnce()
     expect(screen.getByRole('radio', { name: 'Lead' })).toBeChecked()
   })
 })
@@ -142,6 +151,7 @@ describe('EditContactForm', () => {
 
   it('prefills the contact and patches the update endpoint', async () => {
     vi.mocked(router.patch).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
@@ -187,6 +197,7 @@ describe('EditContactForm', () => {
 
   it('saves on Cmd+Enter', async () => {
     vi.mocked(router.patch).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
@@ -213,6 +224,7 @@ describe('StatusForm', () => {
 
   it('patches the status endpoint as soon as a status is selected', async () => {
     vi.mocked(router.patch).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()
@@ -310,6 +322,7 @@ describe('NoteForm', () => {
 
   it('posts the note to the contact notes endpoint and resets after settling', async () => {
     vi.mocked(router.post).mockImplementationOnce((_url, _data, options) => {
+      options?.onSuccess?.({} as never)
       options?.onFinish?.({} as never)
     })
     const user = userEvent.setup()

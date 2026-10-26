@@ -14,65 +14,39 @@ function startVisit() {
   return { promise, settlement }
 }
 
-async function flushMicrotasks() {
-  await Promise.resolve()
-  await Promise.resolve()
-}
-
 describe('visitToPromise', () => {
-  it('resolves when the visit finishes', async () => {
+  it('resolves after success followed by finish', async () => {
     const { promise, settlement } = startVisit()
-    let settled = false
-    void promise.then(() => {
-      settled = true
-    })
 
+    settlement.onSuccess()
     settlement.onFinish()
-    await flushMicrotasks()
 
-    expect(settled).toBe(true)
+    await expect(promise).resolves.toBeUndefined()
   })
 
-  it('resolves when the visit is cancelled', async () => {
+  it('rejects validation errors even when finish follows', async () => {
     const { promise, settlement } = startVisit()
-    let settled = false
-    void promise.then(() => {
-      settled = true
-    })
-
-    settlement.onCancel()
-    await flushMicrotasks()
-
-    expect(settled).toBe(true)
-  })
-
-  it('stays pending on an error event and settles on finish', async () => {
-    const { promise, settlement } = startVisit()
-    let settled = false
-    void promise.then(() => {
-      settled = true
-    })
 
     settlement.onError()
-    await flushMicrotasks()
-    expect(settled).toBe(false)
-
     settlement.onFinish()
-    await flushMicrotasks()
-    expect(settled).toBe(true)
+
+    await expect(promise).rejects.toThrow('Visit failed validation')
   })
 
-  it('settles once even when several callbacks fire', async () => {
+  it('rejects cancellation even when finish follows', async () => {
     const { promise, settlement } = startVisit()
-    let settlements = 0
-    void promise.then(() => {
-      settlements += 1
-    })
+
+    settlement.onCancel()
+    settlement.onFinish()
+
+    await expect(promise).rejects.toThrow('Visit cancelled')
+  })
+
+  it('rejects a visit that finishes without success', async () => {
+    const { promise, settlement } = startVisit()
 
     settlement.onFinish()
-    settlement.onCancel()
-    await flushMicrotasks()
 
-    expect(settlements).toBe(1)
+    await expect(promise).rejects.toThrow('Visit finished without success')
   })
 })
