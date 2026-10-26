@@ -2,6 +2,29 @@
 
 <!-- version list -->
 
+## v0.3.0 (2026-10-26)
+
+### Bug Fixes
+
+- **crm**: Reject invalid contact values and statuses when editing
+  ([`b8d2f51`](https://github.com/ekkysoftware/messy-crm/commit/b8d2f517b9da38091a0d4f08584ca945d490fc5b))
+
+- **frontend**: Handle failed contact writes, trap dialog focus, and correct Unicode initials and
+  focus outlines
+  ([`4f27727`](https://github.com/ekkysoftware/messy-crm/commit/4f277277cb5eebaabdae9ec3bf32f3a9bc284945))
+
+- **frontend**: Move contact search above the contact table
+  ([`438981f`](https://github.com/ekkysoftware/messy-crm/commit/438981f98164c8985b6e93b637f32d2e81556399))
+
+### Features
+
+- **crm**: Add contact edit form
+  ([`9961a2a`](https://github.com/ekkysoftware/messy-crm/commit/9961a2a670833226f0ca31803871f072bf33eb57))
+
+- **frontend**: Rebuild the CRM screen from the pen design
+  ([`cbcc9f7`](https://github.com/ekkysoftware/messy-crm/commit/cbcc9f700c1127219560c58dcc6543b809fcced8))
+
+
 ## v0.2.2 (2026-10-25)
 
 ### Bug Fixes
