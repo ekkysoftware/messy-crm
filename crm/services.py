@@ -82,5 +82,11 @@ def add_note(*, contact, body):
 
 
 @transaction.atomic
+def bulk_change_status(*, ids, new_status):
+    """Move every listed contact to the same status in one statement."""
+    return Contact.objects.filter(pk__in=ids).update(status=new_status)
+
+
+@transaction.atomic
 def delete_contact(*, contact):
     contact.delete()

@@ -13,6 +13,7 @@ from .models import Contact
 from .pages import DASHBOARD_COMPONENT, dashboard_props, return_url
 from .services import (
     add_note,
+    bulk_change_status,
     change_status,
     create_contact,
     delete_contact,
@@ -97,6 +98,21 @@ class ContactView(CommandView):
         change_status(contact=contact, new_status=form.cleaned_data["new_status"])
         messages.success(request, f"Status changed to {contact.status}")
         return redirect(return_url(q, status, contact.id))
+
+
+class BulkStatusView(CommandView):
+    """Move a selection of contacts to one status from the dashboard."""
+
+    def post(self, request: HttpRequest) -> HttpResponse:
+        data = self.payload(request)
+        q, status = self.filters(request, data)
+
+        updated = bulk_change_status(
+            ids=data.get("ids") or [],
+            new_status=data.get("new_status") or "",
+        )
+        messages.success(request, f"Updated {updated} contacts")
+        return redirect(return_url(q, status))
 
 
 class ContactDetailView(CommandView):
