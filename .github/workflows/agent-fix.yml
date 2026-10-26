@@ -1,0 +1,137 @@
+name: Agent Fix
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to fix (main is refused)"
+        default: development
+        type: string
+      findings:
+        description: "Findings to fix, pasted from the deepseek-code-review report"
+        required: true
+        type: string
+      max_commits:
+        description: "Refuse once this many fix(agent) commits sit on top of the branch"
+        default: "2"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-fix-${{ inputs.branch }}
+  cancel-in-progress: false
+
+env:
+  UV_VERSION: "0.13.0"
+  NODE_VERSION: "22"
+  PI_VERSION: "1.4.0"
+
+jobs:
+  fix:
+    name: fix
+    if: inputs.branch != 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: Agent
+    permissions:
+      contents: write
+    env:
+      DJANGO_DEBUG: "true"
+      BRANCH: ${{ inputs.branch }}
+      MAX_COMMITS: ${{ inputs.max_commits }}
+      FINDINGS: ${{ inputs.findings }}
+      GH_TOKEN: ${{ secrets.AGENT_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the loop budget
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::error::AGENT_TOKEN is not set; a GITHUB_TOKEN push would not trigger the next CI run"
+            exit 1
+          fi
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --quiet origin "$BRANCH"
+          done_=$(git log --format=%s "origin/${BRANCH}" | awk '/^fix\(agent\):/{n++; next} {exit} END{print n+0}')
+          echo "existing agent commits on ${BRANCH}: ${done_} (budget ${MAX_COMMITS})"
+          if (( done_ >= MAX_COMMITS )); then
+            echo "::error::${BRANCH} already carries ${done_} agent commits; a human needs to look at this"
+            exit 1
+          fi
+          echo "ITERATION=$(( done_ + 1 ))" >> "$GITHUB_ENV"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.14"
+          enable-cache: true
+
+      - run: uv sync --frozen
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pi
+        run: npm install -g --ignore-scripts "@earendil-works/pi-coding-agent@${PI_VERSION}"
+
+      - name: Fix
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          {
+            printf '%s\n\n' "You are fixing code in messy-crm, a Django + DRF backend with a React/Inertia frontend."
+            printf '%s\n\n' "Read AGENTS.md and the skills under .pi/skills/ that match the code you touch before editing."
+            printf '%s\n\n' "A review of branch ${BRANCH} reported the following. Fix every blocking finding, and any"
+            printf '%s\n\n' "non-blocking finding that is cheap and safe. Keep the change minimal; do not refactor beyond it."
+            printf '%s\n\n' "Do not touch .github/, infra/, secrets, or deployment configuration. Do not commit or push."
+            echo "## Findings"
+            echo
+            printf '%s\n' "$FINDINGS" | head -c 20000
+          } > /tmp/prompt.txt
+
+          pi --print --no-session --model deepseek/deepseek-v4-pro \
+            --tools read,write,edit,bash,grep,find,ls "$(cat /tmp/prompt.txt)"
+
+      - name: Verify
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run python manage.py makemigrations --check --dry-run
+          uv run python manage.py check
+          uv run coverage run manage.py test
+          uv run coverage report
+
+      - name: Commit and push
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "::warning::the agent changed nothing; nothing to commit"
+            exit 0
+          fi
+          git config user.name "agent[bot]"
+          git config user.email "agent@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(agent): address review findings" \
+            -m "Automated fix for deepseek-code-review findings on ${BRANCH} (iteration ${ITERATION})."
+          git push origin "HEAD:${BRANCH}"
+          {
+            echo "## agent-fix"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Branch | \`${BRANCH}\` |"
+            echo "| Iteration | \`${ITERATION}\` |"
+            echo "| Commit | \`$(git rev-parse --short HEAD)\` |"
+            echo
+            echo '```'
+            git show --stat --format=%s HEAD | head -40
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
