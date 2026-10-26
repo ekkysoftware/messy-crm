@@ -55,5 +55,27 @@ class StatusChangeForm(forms.Form):
     new_status = forms.ChoiceField(choices=Contact.STATUS_CHOICES)
 
 
+class BulkStatusForm(forms.Form):
+    """Validate a bulk status change: one valid status and integer ids."""
+
+    new_status = forms.ChoiceField(choices=Contact.STATUS_CHOICES)
+    ids = forms.CharField()
+
+    def clean_ids(self):
+        raw = (self.cleaned_data.get("ids") or "").strip()
+        ids = []
+        for part in raw.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                ids.append(int(part))
+            except ValueError:
+                raise forms.ValidationError("Select valid contacts.")
+        if not ids:
+            raise forms.ValidationError("Select at least one contact.")
+        return ids
+
+
 class NoteForm(forms.Form):
     note = forms.CharField(required=False)

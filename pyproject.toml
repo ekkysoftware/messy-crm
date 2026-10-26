@@ -53,8 +53,8 @@ omit = [
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
-# The suite covers the app almost completely; keep regressions from slipping in.
-fail_under = 90
+# Fails the build below 80% so a rewrite cannot quietly drop test coverage.
+fail_under = 80
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",

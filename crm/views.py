@@ -7,12 +7,19 @@ from django.shortcuts import get_object_or_404, redirect
 from django.views import View
 from inertia import render as inertia_render
 
-from .forms import ContactCreateForm, ContactUpdateForm, NoteForm, StatusChangeForm
+from .forms import (
+    BulkStatusForm,
+    ContactCreateForm,
+    ContactUpdateForm,
+    NoteForm,
+    StatusChangeForm,
+)
 from .middleware import _first_errors, flash_errors
 from .models import Contact
 from .pages import DASHBOARD_COMPONENT, dashboard_props, return_url
 from .services import (
     add_note,
+    bulk_change_status,
     change_status,
     create_contact,
     delete_contact,
@@ -97,6 +104,39 @@ class ContactView(CommandView):
         change_status(contact=contact, new_status=form.cleaned_data["new_status"])
         messages.success(request, f"Status changed to {contact.status}")
         return redirect(return_url(q, status, contact.id))
+
+
+class BulkStatusView(CommandView):
+    """Move a selection of contacts to one status from the dashboard."""
+
+    def post(self, request: HttpRequest) -> HttpResponse:
+        data = self.payload(request)
+        q, status = self.filters(request, data)
+
+        ids = self._ids(data)
+        form = BulkStatusForm(
+            {"new_status": data.get("new_status"), "ids": ",".join(ids)}
+        )
+        if not form.is_valid():
+            return self.reject(request, form, q, status)
+
+        updated = bulk_change_status(
+            ids=form.cleaned_data["ids"],
+            new_status=form.cleaned_data["new_status"],
+        )
+        messages.success(request, f"Updated {updated} contacts")
+        return redirect(return_url(q, status))
+
+    def _ids(self, data) -> list[str]:
+        """Normalise the ``ids`` payload for both JSON and form-encoded posts."""
+        if hasattr(data, "getlist"):
+            return [str(value) for value in data.getlist("ids")]
+        raw = data.get("ids") or []
+        if isinstance(raw, str):
+            return [raw]
+        if isinstance(raw, (list, tuple)):
+            return [str(value) for value in raw]
+        return [str(raw)]
 
 
 class ContactDetailView(CommandView):

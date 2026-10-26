@@ -19,6 +19,11 @@ urlpatterns = [
     path("contacts/<int:pk>/", contact_detail, name="update_contact"),
     path("contacts/<int:pk>/", contact_detail, name="delete_contact"),
     path(
+        "contacts/status/",
+        BulkStatusView.as_view(http_method_names=["post"]),
+        name="bulk_update_contact_status",
+    ),
+    path(
         "contacts/<int:pk>/status/",
         ContactView.as_view(http_method_names=["patch"]),
         name="update_contact_status",
