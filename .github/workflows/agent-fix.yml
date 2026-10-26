@@ -25,6 +25,7 @@ concurrency:
 
 env:
   UV_VERSION: "0.13.0"
+  BUN_VERSION: "1.4.3"
   NODE_VERSION: "22"
   PI_VERSION: "1.4.0"
 
@@ -35,14 +36,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: Agent
-    permissions:
-      contents: write
     env:
       DJANGO_DEBUG: "true"
       BRANCH: ${{ inputs.branch }}
       MAX_COMMITS: ${{ inputs.max_commits }}
       FINDINGS: ${{ inputs.findings }}
-      GH_TOKEN: ${{ secrets.AGENT_TOKEN }}
+      PROTECTED: '^(\.github|infra|docker)/|^(Dockerfile|compose[^/]*\.yml)$'
 
     steps:
       - uses: actions/checkout@v5
@@ -52,13 +51,17 @@ jobs:
           persist-credentials: false
 
       - name: Check the loop budget
+        env:
+          GH_TOKEN: ${{ secrets.AGENT_TOKEN }}
         run: |
           if [[ -z "$GH_TOKEN" ]]; then
             echo "::error::AGENT_TOKEN is not set; a GITHUB_TOKEN push would not trigger the next CI run"
             exit 1
           fi
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git fetch --quiet origin "$BRANCH"
+          MAX_COMMITS="${MAX_COMMITS//[^0-9]/}"
+          MAX_COMMITS="${MAX_COMMITS:-2}"
+          git fetch --quiet "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
           done_=$(git log --format=%s "origin/${BRANCH}" | awk '/^fix\(agent\):/{n++; next} {exit} END{print n+0}')
           echo "existing agent commits on ${BRANCH}: ${done_} (budget ${MAX_COMMITS})"
           if (( done_ >= MAX_COMMITS )); then
@@ -76,6 +79,10 @@ jobs:
 
       - run: uv sync --frozen
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -92,16 +99,16 @@ jobs:
             printf '%s\n\n' "Read AGENTS.md and the skills under .pi/skills/ that match the code you touch before editing."
             printf '%s\n\n' "A review of branch ${BRANCH} reported the following. Fix every blocking finding, and any"
             printf '%s\n\n' "non-blocking finding that is cheap and safe. Keep the change minimal; do not refactor beyond it."
-            printf '%s\n\n' "Do not touch .github/, infra/, secrets, or deployment configuration. Do not commit or push."
+            printf '%s\n\n' "Do not touch .github/, infra/, docker/, the Dockerfile, or any compose file. Do not commit or push."
             echo "## Findings"
             echo
             printf '%s\n' "$FINDINGS" | head -c 20000
           } > /tmp/prompt.txt
 
-          pi --print --no-session --model deepseek/deepseek-v4-pro \
+          pi --print --no-session -a --model deepseek/deepseek-v4-pro \
             --tools read,write,edit,bash,grep,find,ls "$(cat /tmp/prompt.txt)"
 
-      - name: Verify
+      - name: Verify backend
         run: |
           uv run ruff check .
           uv run ruff format --check .
@@ -110,18 +117,47 @@ jobs:
           uv run coverage run manage.py test
           uv run coverage report
 
-      - name: Commit and push
+      - name: Verify frontend
+        working-directory: frontend
         run: |
-          if git diff --quiet && git diff --cached --quiet; then
+          if [[ -z "$(git status --porcelain -- .)" ]]; then
+            echo "no frontend changes"
+            exit 0
+          fi
+          bun install --frozen-lockfile
+          bun run test
+          bun run typecheck
+          bun run build
+
+      - name: Commit and push
+        env:
+          GH_TOKEN: ${{ secrets.AGENT_TOKEN }}
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
             echo "::warning::the agent changed nothing; nothing to commit"
             exit 0
           fi
+          touched=$(git diff --cached --name-only | grep -E "$PROTECTED" || true)
+          if [[ -n "$touched" ]]; then
+            echo "::error::the agent touched CI or deployment paths; refusing to commit"
+            echo "$touched"
+            exit 1
+          fi
+
           git config user.name "agent[bot]"
           git config user.email "agent@users.noreply.github.com"
-          git add -A
           git commit -m "fix(agent): address review findings" \
             -m "Automated fix for deepseek-code-review findings on ${BRANCH} (iteration ${ITERATION})."
-          git push origin "HEAD:${BRANCH}"
+
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --quiet "$remote" "$BRANCH"
+          if ! git merge-base --is-ancestor FETCH_HEAD HEAD; then
+            echo "::warning::${BRANCH} advanced during the run; replaying the fix on top"
+            git rebase FETCH_HEAD
+          fi
+          git push "$remote" "HEAD:${BRANCH}"
+
           {
             echo "## agent-fix"
             echo

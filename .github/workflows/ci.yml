@@ -192,34 +192,44 @@ jobs:
           End with exactly one final line, either "VERDICT: pass" or "VERDICT: block".
           Reserve VERDICT: block for correctness, security, or data-loss risk; everything else is non-blocking.'
 
-          pi --print --model deepseek/deepseek-flash --tools read,grep,find,ls \
-            "$prompt" < /tmp/review-input.diff > /tmp/review.md
+          pi --print --no-session -a --model deepseek/deepseek-flash --tools read,grep,find,ls \
+            "$prompt" < /tmp/review-input.diff > /tmp/review.md || echo "REVIEW_RC=$?" >> "$GITHUB_ENV"
           echo "--- review ---"
           cat /tmp/review.md
 
       - name: Report
-        if: env.SKIP != '1'
+        if: ${{ !cancelled() && env.SKIP != '1' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
         run: |
           { echo '<!-- deepseek-code-review -->'; cat /tmp/review.md; } > /tmp/comment.md
           cat /tmp/comment.md >> "$GITHUB_STEP_SUMMARY"
 
-          number="${{ github.event.pull_request.number }}"
+          number="$NUMBER"
           if [[ -z "$number" ]]; then
             number=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].number // empty')
           fi
           if [[ -n "$number" ]]; then
-            gh pr comment "$number" --body-file /tmp/comment.md
+            id=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${number}/comments" --paginate \
+              --jq '.[] | select(.body | startswith("<!-- deepseek-code-review -->")) | .id' | tail -1)
+            if [[ -n "$id" ]]; then
+              gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${id}" -F body=@/tmp/comment.md > /dev/null
+            else
+              gh pr comment "$number" --body-file /tmp/comment.md
+            fi
           fi
 
-          verdict=$(grep -oE '^VERDICT: (pass|block)$' /tmp/review.md | tail -1 | awk '{print $2}')
-          if [[ -z "$verdict" ]]; then
-            echo "::warning::review produced no VERDICT line; not blocking"
-          elif [[ "$verdict" == "block" ]]; then
-            echo "::error::deepseek-code-review blocked this change"
+          if [[ "${REVIEW_RC:-0}" != "0" ]]; then
+            echo "::error::the reviewer exited ${REVIEW_RC}; this change has no review"
             exit 1
           fi
+          verdict=$(grep -oE '^VERDICT: (pass|block)$' /tmp/review.md | tail -1 | awk '{print $2}')
+          case "$verdict" in
+            block) echo "::error::deepseek-code-review blocked this change"; exit 1 ;;
+            pass) ;;
+            *) echo "::warning::review produced no VERDICT line; not blocking" ;;
+          esac
 
   deploy-to-staging:
     name: Deploy to Staging

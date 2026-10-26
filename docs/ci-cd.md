@@ -5,8 +5,8 @@ The pipeline is three stages: checks on every change, a dev deployment from
 
 ```text
 pull request         -> workflows -> lint | test | build
-push to development  -> workflows -> lint | test | build -> deploy        (Staging)
-push to main         -> workflows -> lint | test | build -> deploy-prod   (Production, approval)
+development (push)  -> workflows -> lint | test | build -> deepseek-code-review -> deploy  (Staging)
+main (push)         -> workflows -> lint | test | build -> deploy-prod                     (Production, approval)
                                                                   |
                                                       release.yml (workflow_run)
 ```
@@ -24,9 +24,51 @@ dependency is the artifact — the promotion job refuses to start unless
 | `lint` | `ruff check`, `ruff format --check`, `bandit -ll` |
 | `test` | migration drift, `manage.py check`, Django tests (`DJANGO_DEBUG=true`) |
 | `build` | frontend tests, `tsc --noEmit`, `vite build` |
+| `deepseek-code-review` | DeepSeek review of the diff, after `lint`/`test`/`build` |
 
-Required status-check names are `workflows`, `lint`, `test`, `build`. Pull
-requests never request cloud credentials and never deploy.
+Required status-check names are `workflows`, `lint`, `test`, `build`, and on
+`development` also `deepseek-code-review`. Pull requests never request cloud
+credentials and never deploy.
+
+## Automated review
+
+`deepseek-code-review` runs after `lint`, `test` and `build` on pull requests
+that do not target `main`, and on pushes to any branch but `main`. It feeds
+`git diff <base>...<head>` (truncated at 150 KB) to `deepseek/deepseek-flash`
+through [pi](https://pi.dev), pointed at the `django-reviewer` and `cdrf-expert`
+skills. Its findings are posted as a pull request comment — edited in place on
+later pushes — and always to the step summary. The job fails on
+`VERDICT: block`, or when the reviewer exits non-zero, so `deploy` cannot ship a
+commit whose review did not happen.
+
+Blocking is reserved for correctness, security and data-loss risk; style that
+`ruff` already enforces is out of scope. `DEEPSEEK_API_KEY` (repository secret)
+is required:
+
+```bash
+gh secret set DEEPSEEK_API_KEY --body "<deepseek-api-key>"
+```
+
+## Agent fix
+
+`agent-fix.yml` is dispatch-only and never deploys. It fixes review findings on
+a branch, verifies them with the same checks as `lint`/`test`/`build`, then
+commits `fix(agent): ...` and pushes, which starts a new CI run:
+
+```bash
+gh workflow run agent-fix.yml -f branch=development -f findings="<pasted findings>"
+```
+
+It refuses `main`, stops after `max_commits` (default 2) agent commits on top of
+the branch so a reviewer that keeps finding something cannot loop, and refuses
+to commit anything under `.github/`, `infra/`, `docker/`, `Dockerfile` or
+`compose*.yml`. The push uses `AGENT_TOKEN`, not `GITHUB_TOKEN`: a workflow-token
+push does not trigger the next run. The job sits in the `Agent` environment and
+must stay the only place holding a write-capable token:
+
+```bash
+gh secret set AGENT_TOKEN --body "<fine-grained-pat>"
+```
 
 ## Environments and variables
 
