@@ -101,6 +101,14 @@ class CreateContactTests(CommandTestCase):
         self.create_contact(name="Unknown Status", new_status="bogus")
         self.assertEqual(Contact.objects.get(name="Unknown Status").status, "lead")
 
+    def test_blank_value_and_status_keep_create_defaults(self):
+        for payload in ({}, {"value": "", "new_status": ""}):
+            with self.subTest(payload=payload):
+                self.create_contact(name="Create Defaults", **payload)
+                contact = Contact.objects.latest("pk")
+                self.assertEqual(contact.value, Decimal(0))
+                self.assertEqual(contact.status, "lead")
+
     def test_new_contact_is_selected_in_the_redirect(self):
         response = self.create_contact(name="Fresh")
 
@@ -118,6 +126,67 @@ class CreateContactTests(CommandTestCase):
 
 
 class UpdateContactTests(CommandTestCase):
+    def test_invalid_value_or_status_rejects_the_entire_edit(self):
+        original = Contact.objects.values().get(pk=self.contact.pk)
+        missing = object()
+        invalid_inputs = {
+            "value": (
+                missing,
+                None,
+                "",
+                "   ",
+                "not-a-number",
+                "NaN",
+                "sNaN",
+                "Infinity",
+                "-Infinity",
+                "10000000000",
+                "-10000000000",
+                "1e100000",
+                "0.001",
+            ),
+            "new_status": (missing, None, "", "   ", "bogus"),
+        }
+        for field, values in invalid_inputs.items():
+            for value in values:
+                with self.subTest(field=field, value=value):
+                    payload = {
+                        "name": "Changed",
+                        "company": "Changed Co",
+                        "value": "4200",
+                        "new_status": "customer",
+                    }
+                    if value is missing:
+                        del payload[field]
+                    else:
+                        payload[field] = value
+                    self.update_contact(self.contact.pk, follow=True, **payload)
+
+                    self.assertEqual(set(self.props()["errors"]), {field})
+                    self.assertEqual(
+                        Contact.objects.values().get(pk=self.contact.pk), original
+                    )
+                    self.assertFalse(Activity.objects.exists())
+                    self.assertNotIn("flash", self.page())
+
+    def test_valid_value_boundaries_and_status_choices_are_saved(self):
+        for value, (status, _) in zip(
+            ("0", "9999999999.99", "-9999999999.99", " 12.34 "),
+            Contact.STATUS_CHOICES,
+            strict=True,
+        ):
+            with self.subTest(value=value, status=status):
+                self.update_contact(
+                    self.contact.pk,
+                    name=self.contact.name,
+                    value=value,
+                    new_status=status,
+                )
+
+                self.contact.refresh_from_db()
+                self.assertEqual(self.contact.value, Decimal(value))
+                self.assertEqual(self.contact.status, status)
+
     def test_valid_update_changes_fields_and_logs_the_edit(self):
         response = self.update_contact(
             self.contact.id,
@@ -193,7 +262,12 @@ class UpdateContactTests(CommandTestCase):
 
     def test_update_keeps_filters_and_selects_the_contact(self):
         response = self.update_contact(
-            self.contact.id, name="Filtered", q="Alt", status="lead"
+            self.contact.id,
+            name="Filtered",
+            value="1000",
+            new_status="lead",
+            q="Alt",
+            status="lead",
         )
         query = parse_qs(urlparse(response["Location"]).query)
 
@@ -202,7 +276,13 @@ class UpdateContactTests(CommandTestCase):
         self.assertEqual(query["contact"], [str(self.contact.id)])
 
     def test_success_flash_names_the_saved_contact(self):
-        self.update_contact(self.contact.id, name="Renamed", follow=True)
+        self.update_contact(
+            self.contact.id,
+            name="Renamed",
+            value="1000",
+            new_status="lead",
+            follow=True,
+        )
 
         self.assertEqual(
             self.flash_messages(),
