@@ -28,7 +28,7 @@ export default function Dashboard() {
 
   return (
     <div className="app">
-      <AppHeader q={q} onQChange={setQ} onSubmit={() => applyFilters(q, status)} />
+      <AppHeader />
 
       <div className="app-body">
         <Sidebar />
@@ -47,8 +47,11 @@ export default function Dashboard() {
             <ContactList
               contacts={contacts}
               total={summary.total}
+              q={q}
               status={status}
               statusChoices={statusChoices}
+              onQChange={setQ}
+              onSearch={() => applyFilters(q, status)}
               onStatusChange={(nextStatus) => applyFilters(q, nextStatus)}
               onNewContact={() => setCreating(true)}
             />

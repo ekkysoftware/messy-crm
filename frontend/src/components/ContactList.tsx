@@ -1,14 +1,18 @@
 import { Plus } from 'lucide-react'
 
 import ContactRow from '@/components/ContactRow'
+import ContactSearch from '@/components/ContactSearch'
 import StatusDropdown from '@/components/StatusDropdown'
 import type { ContactRow as ContactRowData, StatusChoice } from '@/types'
 
 interface ContactListProps {
   contacts: ContactRowData[]
   total: number
+  q: string
   status: string
   statusChoices: StatusChoice[]
+  onQChange: (q: string) => void
+  onSearch: () => void
   onStatusChange: (status: string) => void
   onNewContact: () => void
 }
@@ -16,8 +20,11 @@ interface ContactListProps {
 export default function ContactList({
   contacts,
   total,
+  q,
   status,
   statusChoices,
+  onQChange,
+  onSearch,
   onStatusChange,
   onNewContact,
 }: ContactListProps) {
@@ -43,6 +50,10 @@ export default function ContactList({
           ariaLabel="Status filter"
           align="end"
         />
+      </div>
+
+      <div className="list-search-row">
+        <ContactSearch q={q} onQChange={onQChange} onSubmit={onSearch} />
       </div>
 
       <div className="list-columns" aria-hidden="true">
