@@ -35,6 +35,10 @@ class ContactCreateForm(forms.Form):
         return new_status
 
 
+class ContactUpdateForm(ContactCreateForm):
+    """Editing accepts the same fields and coercion rules as creating."""
+
+
 class StatusChangeForm(forms.Form):
     new_status = forms.ChoiceField(choices=Contact.STATUS_CHOICES)
 

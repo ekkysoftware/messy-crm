@@ -35,6 +35,14 @@ class CommandTestCase(InertiaTestCase):
             follow=follow,
         )
 
+    def update_contact(self, pk, follow=False, **payload):
+        return self.inertia.patch(
+            reverse("update_contact", args=[pk]),
+            payload,
+            content_type=JSON,
+            follow=follow,
+        )
+
     def add_note(self, pk, follow=False, **payload):
         return self.inertia.post(
             reverse("add_contact_note", args=[pk]),
@@ -107,6 +115,99 @@ class CreateContactTests(CommandTestCase):
             [{"level": "success", "message": "Created New Person"}],
         )
         self.assertNotIn("flash", self.props())
+
+
+class UpdateContactTests(CommandTestCase):
+    def test_valid_update_changes_fields_and_logs_the_edit(self):
+        response = self.update_contact(
+            self.contact.id,
+            name="Ekky Updated",
+            email="new@example.com",
+            company="New Co",
+            owner="Mina",
+            phone="+62 555 0199",
+            value="4200",
+            new_status="customer",
+        )
+
+        self.contact.refresh_from_db()
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(self.contact.name, "Ekky Updated")
+        self.assertEqual(self.contact.email, "new@example.com")
+        self.assertEqual(self.contact.company, "New Co")
+        self.assertEqual(self.contact.owner, "Mina")
+        self.assertEqual(self.contact.phone, "+62 555 0199")
+        self.assertEqual(self.contact.value, Decimal(4200))
+        self.assertEqual(self.contact.status, "customer")
+        self.assertTrue(
+            Activity.objects.filter(
+                contact=self.contact, kind="system", body="Contact updated"
+            ).exists()
+        )
+        self.assertEqual(
+            Activity.objects.get(contact=self.contact, kind="status").body,
+            "Status changed from lead to customer",
+        )
+
+    def test_status_only_update_logs_the_transition_without_a_details_event(self):
+        self.update_contact(
+            self.contact.id,
+            name=self.contact.name,
+            email=self.contact.email,
+            company=self.contact.company,
+            value=self.contact.value,
+            new_status="qualified",
+        )
+
+        self.contact.refresh_from_db()
+        self.assertEqual(self.contact.status, "qualified")
+        self.assertEqual(
+            Activity.objects.get(contact=self.contact, kind="status").body,
+            "Status changed from lead to qualified",
+        )
+        self.assertFalse(Activity.objects.filter(kind="system").exists())
+
+    def test_blank_name_reports_error_and_stores_nothing(self):
+        self.update_contact(self.contact.id, name="", company="Changed", follow=True)
+
+        self.contact.refresh_from_db()
+        self.assertEqual(self.props()["errors"]["name"], "Name is required")
+        self.assertEqual(self.contact.name, "Ekky Example")
+        self.assertEqual(self.contact.company, "Altogether")
+
+    def test_unchanged_contact_is_not_logged_as_updated(self):
+        self.update_contact(
+            self.contact.id,
+            name=self.contact.name,
+            email=self.contact.email,
+            company=self.contact.company,
+            value=self.contact.value,
+            new_status=self.contact.status,
+        )
+
+        self.assertFalse(Activity.objects.exists())
+
+    def test_unknown_contact_is_not_found(self):
+        response = self.update_contact(999999, name="Nope")
+        self.assertEqual(response.status_code, 404)
+
+    def test_update_keeps_filters_and_selects_the_contact(self):
+        response = self.update_contact(
+            self.contact.id, name="Filtered", q="Alt", status="lead"
+        )
+        query = parse_qs(urlparse(response["Location"]).query)
+
+        self.assertEqual(query["q"], ["Alt"])
+        self.assertEqual(query["status"], ["lead"])
+        self.assertEqual(query["contact"], [str(self.contact.id)])
+
+    def test_success_flash_names_the_saved_contact(self):
+        self.update_contact(self.contact.id, name="Renamed", follow=True)
+
+        self.assertEqual(
+            self.flash_messages(),
+            [{"level": "success", "message": "Saved Renamed"}],
+        )
 
 
 class StatusChangeTests(CommandTestCase):

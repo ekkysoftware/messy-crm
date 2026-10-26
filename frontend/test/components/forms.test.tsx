@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@inertiajs/react', async () => await import('../mocks/inertia'))
 
+import ContactForm from '@/components/ContactForm'
 import NewContactForm from '@/components/NewContactForm'
 import NoteForm from '@/components/NoteForm'
 import StatusForm from '@/components/StatusForm'
-import { filters, statusChoices } from '../fixtures'
+import { contactDetail, filters, statusChoices } from '../fixtures'
 import { router, usePage } from '../mocks/inertia'
 import { renderWithQueryClient } from '../render'
 
@@ -130,6 +131,77 @@ describe('NewContactForm', () => {
     await waitFor(() => expect(addButton).toBeEnabled())
     expect(nameInput).toHaveValue('')
     expect(screen.getByRole('radio', { name: 'Lead' })).toBeChecked()
+  })
+})
+
+describe('EditContactForm', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    showErrors()
+  })
+
+  it('prefills the contact and patches the update endpoint', async () => {
+    vi.mocked(router.patch).mockImplementationOnce((_url, _data, options) => {
+      options?.onFinish?.({} as never)
+    })
+    const user = userEvent.setup()
+
+    renderWithQueryClient(
+      <ContactForm
+        contact={contactDetail}
+        filters={newContactFilters}
+        statusChoices={statusChoices}
+      />,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Edit contact' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toHaveValue('Ekky Example')
+    expect(screen.getByLabelText('Email')).toHaveValue('ekky@example.com')
+    expect(screen.getByLabelText('Company')).toHaveValue('Altogether')
+    expect(screen.getByLabelText('Phone')).toHaveValue('+62 555 0100')
+    expect(screen.getByLabelText('Owner')).toHaveValue('Mina')
+    expect(screen.getByLabelText('Deal value')).toHaveValue('1000')
+    expect(screen.getByRole('radio', { name: 'Lead' })).toBeChecked()
+
+    await user.clear(screen.getByLabelText('Name'))
+    await user.type(screen.getByLabelText('Name'), 'Ekky Updated')
+    await user.click(screen.getByRole('radio', { name: 'Customer' }))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(router.patch).toHaveBeenCalledWith(
+      `/contacts/${contactDetail.id}/`,
+      expect.objectContaining({
+        name: 'Ekky Updated',
+        email: 'ekky@example.com',
+        company: 'Altogether',
+        owner: 'Mina',
+        phone: '+62 555 0100',
+        value: '1000',
+        new_status: 'customer',
+        q: 'alt',
+        status: 'lead',
+      }),
+      expect.objectContaining({ preserveScroll: true }),
+    )
+  })
+
+  it('saves on Cmd+Enter', async () => {
+    vi.mocked(router.patch).mockImplementationOnce((_url, _data, options) => {
+      options?.onFinish?.({} as never)
+    })
+    const user = userEvent.setup()
+
+    renderWithQueryClient(
+      <ContactForm contact={contactDetail} filters={filters} statusChoices={statusChoices} />,
+    )
+
+    await user.keyboard('{Meta>}{Enter}{/Meta}')
+
+    expect(router.patch).toHaveBeenCalledWith(
+      `/contacts/${contactDetail.id}/`,
+      expect.objectContaining({ name: 'Ekky Example' }),
+      expect.anything(),
+    )
   })
 })
 

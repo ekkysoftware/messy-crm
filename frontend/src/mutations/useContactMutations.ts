@@ -15,6 +15,10 @@ export interface CreateContactInput {
   new_status: ContactStatus
 }
 
+export interface UpdateContactInput extends CreateContactInput {
+  contactId: number
+}
+
 export interface StatusChangeInput {
   contactId: number
   new_status: ContactStatus
@@ -49,6 +53,22 @@ export function useCreateContactMutation(filters: DashboardFilters) {
       visitToPromise(({ onFinish, onCancel }) =>
         router.post(
           '/contacts/',
+          { ...input, ...activeFilters(filters) },
+          { preserveScroll: true, onFinish, onCancel },
+        ),
+      ),
+    onSuccess: () => invalidateDashboard(queryClient),
+  })
+}
+
+export function useUpdateContactMutation(filters: DashboardFilters) {
+  const queryClient = useQueryClient()
+
+  return useMutation<void, Error, UpdateContactInput>({
+    mutationFn: ({ contactId, ...input }) =>
+      visitToPromise(({ onFinish, onCancel }) =>
+        router.patch(
+          `/contacts/${contactId}/`,
           { ...input, ...activeFilters(filters) },
           { preserveScroll: true, onFinish, onCancel },
         ),

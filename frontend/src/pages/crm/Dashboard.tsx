@@ -3,9 +3,9 @@ import { useState } from 'react'
 
 import AppHeader from '@/components/AppHeader'
 import ContactDetail from '@/components/ContactDetail'
+import ContactDialog from '@/components/ContactDialog'
 import ContactList from '@/components/ContactList'
 import Metrics from '@/components/Metrics'
-import NewContactDialog from '@/components/NewContactDialog'
 import PageHeader from '@/components/PageHeader'
 import Sidebar from '@/components/Sidebar'
 import Toast from '@/components/Toast'
@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [q, setQ] = useState(filters.q)
   const [status, setStatus] = useState(filters.status)
   const [creating, setCreating] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   function applyFilters(nextQuery: string, nextStatus: string) {
     setQ(nextQuery)
@@ -51,16 +52,30 @@ export default function Dashboard() {
               onStatusChange={(nextStatus) => applyFilters(q, nextStatus)}
               onNewContact={() => setCreating(true)}
             />
-            <ContactDetail selected={selected} filters={filters} statusChoices={statusChoices} />
+            <ContactDetail
+              selected={selected}
+              filters={filters}
+              statusChoices={statusChoices}
+              onEdit={() => setEditing(true)}
+            />
           </div>
         </main>
       </div>
 
       {creating && (
-        <NewContactDialog
+        <ContactDialog
           filters={filters}
           statusChoices={statusChoices}
           onClose={() => setCreating(false)}
+        />
+      )}
+
+      {editing && selected && (
+        <ContactDialog
+          contact={selected}
+          filters={filters}
+          statusChoices={statusChoices}
+          onClose={() => setEditing(false)}
         />
       )}
     </div>

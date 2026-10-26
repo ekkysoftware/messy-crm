@@ -3,6 +3,7 @@ import {
   CircleDollarSign,
   CircleDot,
   Mail,
+  Pen,
   Phone,
   Trash2,
   UserRound,
@@ -20,9 +21,15 @@ interface ContactDetailProps {
   selected: ContactDetailData | null
   filters: DashboardFilters
   statusChoices: StatusChoice[]
+  onEdit?: () => void
 }
 
-export default function ContactDetail({ selected, filters, statusChoices }: ContactDetailProps) {
+export default function ContactDetail({
+  selected,
+  filters,
+  statusChoices,
+  onEdit,
+}: ContactDetailProps) {
   const deleteContact = useDeleteContactMutation(filters)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
@@ -52,6 +59,15 @@ export default function ContactDetail({ selected, filters, statusChoices }: Cont
           <p className="detail-meta">{selected.company || 'No company'}</p>
         </div>
         <div className="detail-actions">
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Edit contact"
+            title="Edit contact"
+            onClick={onEdit}
+          >
+            <Pen size={15} aria-hidden="true" />
+          </button>
           <button
             type="button"
             className="icon-btn"
