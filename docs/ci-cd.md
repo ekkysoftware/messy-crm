@@ -4,9 +4,10 @@ The pipeline is three stages: checks on every change, a dev deployment from
 `development`, and a production promotion from `main` followed by a release.
 
 ```text
-pull request         -> workflows -> lint | test | build
-development (push)  -> workflows -> lint | test | build -> deepseek-code-review -> deploy  (Staging)
-main (push)         -> workflows -> lint | test | build -> deploy-prod                     (Production, approval)
+pull request -> development -> workflows -> lint | test | build -> deepseek-code-review
+pull request -> main        -> workflows -> lint | test | build
+push to development         -> workflows -> lint | test | build -> deploy       (Staging)
+push to main                -> workflows -> lint | test | build -> deploy-prod  (Production, approval)
                                                                   |
                                                       release.yml (workflow_run)
 ```
@@ -24,22 +25,21 @@ dependency is the artifact — the promotion job refuses to start unless
 | `lint` | `ruff check`, `ruff format --check`, `bandit -ll` |
 | `test` | migration drift, `manage.py check`, Django tests (`DJANGO_DEBUG=true`) |
 | `build` | frontend tests, `tsc --noEmit`, `vite build` |
-| `deepseek-code-review` | DeepSeek review of the diff, after `lint`/`test`/`build` |
+| `deepseek-code-review` | DeepSeek review of the diff, after `lint`/`test`/`build`, pull requests only |
 
-Required status-check names are `workflows`, `lint`, `test`, `build`, and on
-`development` also `deepseek-code-review`. Pull requests never request cloud
-credentials and never deploy.
+Required status-check names are `workflows`, `lint`, `test`, `build`; add
+`deepseek-code-review` to the same list once `development` is protected. Pull
+requests never request cloud credentials and never deploy.
 
 ## Automated review
 
-`deepseek-code-review` runs after `lint`, `test` and `build` on pull requests
-that do not target `main`, and on pushes to any branch but `main`. It feeds
-`git diff <base>...<head>` (truncated at 150 KB) to `deepseek/deepseek-flash`
-through [pi](https://pi.dev), pointed at the `django-reviewer` and `cdrf-expert`
-skills. Its findings are posted as a pull request comment — edited in place on
-later pushes — and always to the step summary. The job fails on
-`VERDICT: block`, or when the reviewer exits non-zero, so `deploy` cannot ship a
-commit whose review did not happen.
+`deepseek-code-review` runs on pull requests into `development` (or any branch
+but `main`) and nowhere else — a push is not reviewed. It feeds
+`git diff <base.sha>...<head.sha>` (truncated at 150 KB) to
+`deepseek/deepseek-flash` through [pi](https://pi.dev), pointed at the
+`django-reviewer` and `cdrf-expert` skills. Its findings are posted as a pull
+request comment — edited in place on later pushes — and always to the step
+summary. The job fails on `VERDICT: block`, or when the reviewer exits non-zero.
 
 Blocking is reserved for correctness, security and data-loss risk; style that
 `ruff` already enforces is out of scope. `DEEPSEEK_API_KEY` (repository secret)
@@ -48,6 +48,10 @@ is required:
 ```bash
 gh secret set DEEPSEEK_API_KEY --body "<deepseek-api-key>"
 ```
+
+`deploy` deliberately does **not** depend on the review: the review is a
+pull-request gate. Without a required status check on `development` a red review
+blocks nothing — a merge, and a direct push, still reach Staging.
 
 ## Agent fix
 

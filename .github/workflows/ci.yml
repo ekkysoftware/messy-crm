@@ -132,8 +132,8 @@ jobs:
     name: deepseek-code-review
     needs: [lint, test, build]
     if: >-
-      (github.event_name == 'pull_request' && github.base_ref != 'main' && github.event.pull_request.head.repo.full_name == github.repository)
-      || (github.event_name != 'pull_request' && github.ref_name != 'main')
+      github.event_name == 'pull_request' && github.base_ref != 'main'
+      && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -147,8 +147,8 @@ jobs:
 
       - name: Collect the diff
         env:
-          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           if [[ -z "$BASE" || "$BASE" =~ ^0+$ ]]; then
             BASE=$(git rev-parse "${HEAD}~1" 2>/dev/null || git rev-list --max-parents=0 "$HEAD")
@@ -207,17 +207,12 @@ jobs:
           cat /tmp/comment.md >> "$GITHUB_STEP_SUMMARY"
 
           number="$NUMBER"
-          if [[ -z "$number" ]]; then
-            number=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].number // empty')
-          fi
-          if [[ -n "$number" ]]; then
-            id=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${number}/comments" --paginate \
-              --jq '.[] | select(.body | startswith("<!-- deepseek-code-review -->")) | .id' | tail -1)
-            if [[ -n "$id" ]]; then
-              gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${id}" -F body=@/tmp/comment.md > /dev/null
-            else
-              gh pr comment "$number" --body-file /tmp/comment.md
-            fi
+          id=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${number}/comments" --paginate \
+            --jq '.[] | select(.body | startswith("<!-- deepseek-code-review -->")) | .id' | tail -1)
+          if [[ -n "$id" ]]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${id}" -F body=@/tmp/comment.md > /dev/null
+          else
+            gh pr comment "$number" --body-file /tmp/comment.md
           fi
 
           if [[ "${REVIEW_RC:-0}" != "0" ]]; then
@@ -233,7 +228,7 @@ jobs:
 
   deploy-to-staging:
     name: Deploy to Staging
-    needs: [deepseek-code-review]
+    needs: [lint, test, build]
     if: github.event_name != 'pull_request' && github.ref_name != 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
