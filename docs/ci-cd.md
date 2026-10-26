@@ -6,7 +6,7 @@ The pipeline is three stages: checks on every change, a dev deployment from
 ```text
 pull request -> development -> workflows -> lint | test | build -> deepseek-code-review
 pull request -> main        -> workflows -> lint | test | build
-push to development         -> workflows -> lint | test | build -> deploy       (Staging)
+push to development         -> workflows -> lint | test | build -> deploy       (Staging, development only)
 push to main                -> workflows -> lint | test | build -> deploy-prod  (Production, approval)
                                                                   |
                                                       release.yml (workflow_run)
