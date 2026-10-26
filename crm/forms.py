@@ -38,6 +38,16 @@ class ContactCreateForm(forms.Form):
 class ContactUpdateForm(ContactCreateForm):
     """Editing requires a valid value and status before saving any changes."""
 
+    # Derive edited fields from the model so length and email validation happen
+    # before the update service is called.
+    name = Contact._meta.get_field("name").formfield(
+        error_messages={"required": "Name is required"}
+    )
+    email = Contact._meta.get_field("email").formfield()
+    company = Contact._meta.get_field("company").formfield()
+    owner = Contact._meta.get_field("owner").formfield()
+    phone = Contact._meta.get_field("phone").formfield()
+
     def clean_value(self):
         return (
             Contact._meta.get_field("value")
